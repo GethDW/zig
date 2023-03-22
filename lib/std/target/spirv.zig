@@ -3,7 +3,7 @@
 //! TODO: Dependencies of extensions on extensions.
 //! TODO: Dependencies of extensions on versions.
 
-const std = @import("../std.zig");
+const std = @import("std");
 const CpuFeature = std.Target.Cpu.Feature;
 const CpuModel = std.Target.Cpu.Model;
 

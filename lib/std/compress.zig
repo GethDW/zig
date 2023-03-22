@@ -1,4 +1,4 @@
-const std = @import("std.zig");
+const std = @import("std");
 
 pub const deflate = @import("compress/deflate.zig");
 pub const gzip = @import("compress/gzip.zig");

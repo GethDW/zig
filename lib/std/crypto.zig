@@ -178,7 +178,7 @@ pub const utils = @import("crypto/utils.zig");
 /// This is a thread-local, cryptographically secure pseudo random number generator.
 pub const random = @import("crypto/tlcsprng.zig").interface;
 
-const std = @import("std.zig");
+const std = @import("std");
 
 pub const errors = @import("crypto/errors.zig");
 

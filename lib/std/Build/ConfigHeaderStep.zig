@@ -432,6 +432,6 @@ fn renderValueNasm(output: *std.ArrayList(u8), name: []const u8, value: Value) !
     }
 }
 
-const std = @import("../std.zig");
+const std = @import("std");
 const ConfigHeaderStep = @This();
 const Step = std.Build.Step;

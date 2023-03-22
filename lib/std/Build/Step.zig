@@ -238,7 +238,7 @@ pub fn dump(step: *Step) void {
 }
 
 const Step = @This();
-const std = @import("../std.zig");
+const std = @import("std");
 const Build = std.Build;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;

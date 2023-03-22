@@ -36,7 +36,7 @@ pub fn iterateSection(ini: Ini, header: []const u8) SectionIterator {
     };
 }
 
-const std = @import("std.zig");
+const std = @import("std");
 const mem = std.mem;
 const assert = std.debug.assert;
 const Ini = @This();

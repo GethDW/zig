@@ -1,4 +1,4 @@
-const std = @import("../../std.zig");
+const std = @import("std");
 const tls = std.crypto.tls;
 const Client = @This();
 const net = std.net;

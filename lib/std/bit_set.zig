@@ -30,7 +30,7 @@
 //!   A variant of DynamicBitSet which does not store a pointer to its
 //!   allocator, in order to save space.
 
-const std = @import("std.zig");
+const std = @import("std");
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 

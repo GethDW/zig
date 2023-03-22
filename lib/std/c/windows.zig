@@ -1,5 +1,5 @@
 //! The reference for these types and values is Microsoft Windows's ucrt (Universal C RunTime).
-const std = @import("../std.zig");
+const std = @import("std");
 const ws2_32 = std.os.windows.ws2_32;
 const windows = std.os.windows;
 

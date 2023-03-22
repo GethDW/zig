@@ -1,5 +1,5 @@
 const WasmPageAllocator = @This();
-const std = @import("../std.zig");
+const std = @import("std");
 const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const mem = std.mem;

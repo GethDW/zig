@@ -1,4 +1,4 @@
-const std = @import("../std.zig");
+const std = @import("std");
 const wasi = std.os.wasi;
 const FDFLAG = wasi.FDFLAG;
 

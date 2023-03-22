@@ -812,7 +812,7 @@ fn verify_ecdsa(
     }
 }
 
-const std = @import("../std.zig");
+const std = @import("std");
 const crypto = std.crypto;
 const mem = std.mem;
 const Certificate = @This();

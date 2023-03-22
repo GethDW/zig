@@ -6,7 +6,7 @@
 impl: Impl = .{},
 
 const RwLock = @This();
-const std = @import("../std.zig");
+const std = @import("std");
 const builtin = @import("builtin");
 const assert = std.debug.assert;
 const testing = std.testing;

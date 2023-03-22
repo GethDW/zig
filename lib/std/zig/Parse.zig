@@ -3893,7 +3893,7 @@ fn nextToken(p: *Parse) TokenIndex {
 const null_node: Node.Index = 0;
 
 const Parse = @This();
-const std = @import("../std.zig");
+const std = @import("std");
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const Ast = std.zig.Ast;

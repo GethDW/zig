@@ -8,7 +8,7 @@ cond: Condition = .{},
 permits: usize = 0,
 
 const Semaphore = @This();
-const std = @import("../std.zig");
+const std = @import("std");
 const Mutex = std.Thread.Mutex;
 const Condition = std.Thread.Condition;
 const builtin = @import("builtin");

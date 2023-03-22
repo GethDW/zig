@@ -5,7 +5,7 @@
 //!   slices as well as APIs which accept null-terminated UTF16LE byte buffers.
 
 const builtin = @import("builtin");
-const std = @import("../std.zig");
+const std = @import("std");
 const mem = std.mem;
 const assert = std.debug.assert;
 const math = std.math;

@@ -1,4 +1,4 @@
-const std = @import("../std.zig");
+const std = @import("std");
 const builtin = @import("builtin");
 const maxInt = std.math.maxInt;
 const native_abi = builtin.abi;

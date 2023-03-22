@@ -1,4 +1,4 @@
-const std = @import("../std.zig");
+const std = @import("std");
 const sha2 = std.crypto.hash.sha2;
 
 /// The composition of two hash functions: H1 o H2, with the same API as regular hash functions.

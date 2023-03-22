@@ -1,4 +1,4 @@
-const std = @import("std.zig");
+const std = @import("std");
 const tokenizer = @import("zig/tokenizer.zig");
 const fmt = @import("zig/fmt.zig");
 const assert = std.debug.assert;

@@ -1,4 +1,4 @@
-const std = @import("../../std.zig");
+const std = @import("std");
 const lzma = @import("../lzma.zig");
 
 fn testDecompress(compressed: []const u8) ![]u8 {

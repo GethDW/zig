@@ -4,7 +4,7 @@
 // https://git.musl-libc.org/cgit/musl/tree/src/math/coshf.c
 // https://git.musl-libc.org/cgit/musl/tree/src/math/cosh.c
 
-const std = @import("../std.zig");
+const std = @import("std");
 const math = std.math;
 const expo2 = @import("expo2.zig").expo2;
 const expect = std.testing.expect;

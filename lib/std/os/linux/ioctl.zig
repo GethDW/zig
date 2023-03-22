@@ -1,4 +1,4 @@
-const std = @import("../../std.zig");
+const std = @import("std");
 
 const bits = switch (@import("builtin").cpu.arch) {
     .mips,

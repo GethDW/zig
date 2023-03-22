@@ -1,6 +1,6 @@
 // Based on public domain Supercop by Daniel J. Bernstein
 
-const std = @import("../std.zig");
+const std = @import("std");
 const builtin = @import("builtin");
 const math = std.math;
 const mem = std.mem;

@@ -30,7 +30,7 @@
 //! * ExtensionType extension_type;
 //! * opaque extension_data<0..2^16-1>;
 
-const std = @import("../std.zig");
+const std = @import("std");
 const Tls = @This();
 const net = std.net;
 const mem = std.mem;

@@ -2,7 +2,7 @@
 //! Does not do perfect grammar and character class checking, but should be robust against URIs in the wild.
 
 const Uri = @This();
-const std = @import("std.zig");
+const std = @import("std");
 const testing = std.testing;
 
 scheme: []const u8,

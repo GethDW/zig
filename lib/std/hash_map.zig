@@ -1,4 +1,4 @@
-const std = @import("std.zig");
+const std = @import("std");
 const builtin = @import("builtin");
 const assert = debug.assert;
 const autoHash = std.hash.autoHash;

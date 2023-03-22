@@ -3,7 +3,7 @@
 // Tests are taken from https://github.com/nst/JSONTestSuite
 // Read also http://seriot.ch/parsing_json.php for a good overview.
 
-const std = @import("../std.zig");
+const std = @import("std");
 const json = std.json;
 const testing = std.testing;
 const TokenStream = std.json.TokenStream;

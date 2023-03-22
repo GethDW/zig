@@ -285,7 +285,7 @@ fn make(step: *Step, prog_node: *std.Progress.Node) !void {
     try step.writeManifest(&man);
 }
 
-const std = @import("../std.zig");
+const std = @import("std");
 const Step = std.Build.Step;
 const fs = std.fs;
 const ArrayList = std.ArrayList;

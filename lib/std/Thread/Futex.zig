@@ -3,7 +3,7 @@
 //! This check helps avoid block/unblock deadlocks which occur if a `wake()` happens before a `wait()`.
 //! Using Futex, other Thread synchronization primitives can be built which efficiently wait for cross-thread events or signals.
 
-const std = @import("../std.zig");
+const std = @import("std");
 const builtin = @import("builtin");
 const Futex = @This();
 

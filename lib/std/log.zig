@@ -72,7 +72,7 @@
 //! [warning] (nice_library): Something went very wrong, sorry
 //! ```
 
-const std = @import("std.zig");
+const std = @import("std");
 const builtin = @import("builtin");
 
 pub const Level = enum {

@@ -991,5 +991,5 @@ pub inline fn addErrRetTraceAddr(st: *StackTrace, addr: usize) void {
     st.index += 1;
 }
 
-const std = @import("std.zig");
+const std = @import("std");
 const root = @import("root");

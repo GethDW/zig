@@ -1,4 +1,4 @@
-const std = @import("../std.zig");
+const std = @import("std");
 
 /// A protocol is an interface identified by a GUID.
 pub const protocols = @import("uefi/protocols.zig");

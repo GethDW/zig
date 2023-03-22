@@ -1,4 +1,4 @@
-const std = @import("../../std.zig");
+const std = @import("std");
 const lzma2 = std.compress.lzma2;
 const Allocator = std.mem.Allocator;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;

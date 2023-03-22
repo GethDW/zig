@@ -1,4 +1,4 @@
-const std = @import("../std.zig");
+const std = @import("std");
 
 pub const Token = struct {
     tag: Tag,

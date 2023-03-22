@@ -245,7 +245,7 @@ pub fn parseCert(cb: *Bundle, gpa: Allocator, decoded_start: u32, now_sec: i64) 
 }
 
 const builtin = @import("builtin");
-const std = @import("../../std.zig");
+const std = @import("std");
 const assert = std.debug.assert;
 const fs = std.fs;
 const mem = std.mem;

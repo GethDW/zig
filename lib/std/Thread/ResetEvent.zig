@@ -2,7 +2,7 @@
 //! It can also block threads until the "bool" is set with cancellation via timed waits.
 //! ResetEvent can be statically initialized and is at most `@sizeOf(u64)` large.
 
-const std = @import("../std.zig");
+const std = @import("std");
 const builtin = @import("builtin");
 const ResetEvent = @This();
 

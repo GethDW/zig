@@ -191,5 +191,5 @@ test stripComponents {
     try expectEqualStrings("c", try stripComponents("a/b/c", 2));
 }
 
-const std = @import("std.zig");
+const std = @import("std");
 const assert = std.debug.assert;

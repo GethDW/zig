@@ -1,4 +1,4 @@
-const std = @import("../../std.zig");
+const std = @import("std");
 const windows = std.os.windows;
 const WINAPI = windows.WINAPI;
 const KNOWNFOLDERID = windows.KNOWNFOLDERID;

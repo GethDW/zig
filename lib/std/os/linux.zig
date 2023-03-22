@@ -5,7 +5,7 @@
 //! * Implement all the syscalls in the same way that libc functions will
 //!   provide `rename` when only the `renameat` syscall exists.
 //! * Does not support POSIX thread cancellation.
-const std = @import("../std.zig");
+const std = @import("std");
 const builtin = @import("builtin");
 const assert = std.debug.assert;
 const maxInt = std.math.maxInt;

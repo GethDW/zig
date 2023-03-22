@@ -68,6 +68,6 @@ fn make(step: *Step, prog_node: *std.Progress.Node) !void {
     return step.evalChildProcess(argv.items);
 }
 
-const std = @import("../std.zig");
+const std = @import("std");
 const Step = std.Build.Step;
 const FmtStep = @This();

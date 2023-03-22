@@ -3503,7 +3503,7 @@ pub const Node = struct {
     };
 };
 
-const std = @import("../std.zig");
+const std = @import("std");
 const assert = std.debug.assert;
 const testing = std.testing;
 const mem = std.mem;

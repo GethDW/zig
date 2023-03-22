@@ -2,7 +2,7 @@
 //! primitives that operate on kernel threads. For concurrency primitives that support
 //! both evented I/O and async I/O, see the respective names in the top level std namespace.
 
-const std = @import("std.zig");
+const std = @import("std");
 const builtin = @import("builtin");
 const math = std.math;
 const os = std.os;

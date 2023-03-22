@@ -6,7 +6,7 @@
 //!
 //! TODO(tiehuis): Benchmark these against other reference implementations.
 
-const std = @import("std.zig");
+const std = @import("std");
 const builtin = @import("builtin");
 const assert = std.debug.assert;
 const mem = std.mem;

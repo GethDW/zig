@@ -1,4 +1,4 @@
-const std = @import("../../std.zig");
+const std = @import("std");
 const builtin = @import("builtin");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;

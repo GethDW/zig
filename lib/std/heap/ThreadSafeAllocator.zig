@@ -40,6 +40,6 @@ fn free(ctx: *anyopaque, buf: []u8, log2_buf_align: u8, ret_addr: usize) void {
     return self.child_allocator.rawFree(buf, log2_buf_align, ret_addr);
 }
 
-const std = @import("../std.zig");
+const std = @import("std");
 const ThreadSafeAllocator = @This();
 const Allocator = std.mem.Allocator;

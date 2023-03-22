@@ -3,7 +3,7 @@
 //! This struct does reference any resources and it is copyable.
 
 const CrossTarget = @This();
-const std = @import("../std.zig");
+const std = @import("std");
 const builtin = @import("builtin");
 const assert = std.debug.assert;
 const Target = std.Target;

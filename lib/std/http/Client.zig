@@ -3,7 +3,7 @@
 //!
 //! This API is *not* thread safe.
 
-const std = @import("../std.zig");
+const std = @import("std");
 const mem = std.mem;
 const assert = std.debug.assert;
 const http = std.http;

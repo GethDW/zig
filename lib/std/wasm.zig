@@ -1,7 +1,7 @@
 ///! Contains all constants and types representing the wasm
 ///! binary format, as specified by:
 ///! https://webassembly.github.io/spec/core/
-const std = @import("std.zig");
+const std = @import("std");
 const testing = std.testing;
 
 // TODO: Add support for multi-byte ops (e.g. table operations)

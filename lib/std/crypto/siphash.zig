@@ -6,7 +6,7 @@
 // - authentication of short-lived messages in online protocols
 //
 // https://www.aumasson.jp/siphash/siphash.pdf
-const std = @import("../std.zig");
+const std = @import("std");
 const assert = std.debug.assert;
 const testing = std.testing;
 const math = std.math;

@@ -1,4 +1,4 @@
-const std = @import("../../std.zig");
+const std = @import("std");
 const errno = getErrno;
 const unexpectedErrno = std.os.unexpectedErrno;
 const expectEqual = std.testing.expectEqual;

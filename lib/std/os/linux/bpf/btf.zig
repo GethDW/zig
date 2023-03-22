@@ -1,4 +1,4 @@
-const std = @import("../../../std.zig");
+const std = @import("std");
 
 pub const magic = 0xeb9f;
 pub const version = 1;

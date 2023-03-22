@@ -1,4 +1,4 @@
-const std = @import("../../../std.zig");
+const std = @import("std");
 const kern = @import("kern.zig");
 
 const PtRegs = @compileError("TODO missing os bits: PtRegs");

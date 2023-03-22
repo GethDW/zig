@@ -268,7 +268,7 @@ pub const CustomHeader = struct {
     value: []const u8,
 };
 
-const std = @import("std.zig");
+const std = @import("std");
 
 test {
     _ = Client;
