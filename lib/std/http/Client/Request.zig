@@ -1,4 +1,4 @@
-const std = @import("std");
+const std = @import("../../std.zig");
 const http = std.http;
 const Uri = std.Uri;
 const mem = std.mem;

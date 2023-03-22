@@ -1,4 +1,4 @@
-const std = @import("std");
+const std = @import("../std.zig");
 const mem = std.mem;
 const assert = std.debug.assert;
 const AesBlock = std.crypto.core.aes.Block;

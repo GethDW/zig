@@ -1,4 +1,4 @@
-const std = @import("std");
+const std = @import("../std.zig");
 const ObjCopyStep = @This();
 
 const Allocator = std.mem.Allocator;

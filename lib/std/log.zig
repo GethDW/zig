@@ -16,7 +16,7 @@
 //! An example `logFn` might look something like this:
 //!
 //! ```
-//! const std = @import("std");
+//! const std = @import("std.zig");
 //!
 //! pub const std_options = struct {
 //!     // Set the log level to info

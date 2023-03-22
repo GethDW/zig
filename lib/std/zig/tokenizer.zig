@@ -1523,7 +1523,7 @@ test "illegal unicode codepoints" {
 
 test "string identifier and builtin fns" {
     try testTokenize(
-        \\const @"if" = @import("std");
+        \\const @"if" = @import("../std.zig");
     , &.{
         .keyword_const,
         .identifier,
