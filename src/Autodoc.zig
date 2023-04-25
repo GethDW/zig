@@ -895,24 +895,24 @@ fn walkInstruction(
     inst_index: usize,
     need_type: bool, // true if the caller needs us to provide also a typeRef
 ) AutodocErrors!DocData.WalkResult {
-    const tags = file.zir.instructions.items(.tag);
+    const inst = file.zir.instructions.get(inst_index);
+    const tags = file.zir.instructions.items(.tags);
     const data = file.zir.instructions.items(.data);
 
     // We assume that the topmost ast_node entry corresponds to our decl
     const self_ast_node_index = self.ast_nodes.items.len - 1;
 
-    switch (tags[inst_index]) {
+    switch (inst) {
         else => {
             printWithContext(
                 file,
                 inst_index,
                 "TODO: implement `{s}` for walkInstruction\n\n",
-                .{@tagName(tags[inst_index])},
+                .{@tagName(inst)},
             );
-            return self.cteTodo(@tagName(tags[inst_index]));
+            return self.cteTodo(@tagName(inst));
         },
-        .import => {
-            const str_tok = data[inst_index].str_tok;
+        .import => |str_tok| {
             var path = str_tok.get(file.zir);
 
             // importFile cannot error out since all files
@@ -1015,12 +1015,10 @@ fn walkInstruction(
                 .expr = .{ .type = @enumToInt(Ref.type_type) },
             };
         },
-        .ret_node => {
-            const un_node = data[inst_index].un_node;
+        .ret_node => |un_node| {
             return self.walkRef(file, parent_scope, parent_src, un_node.operand, false);
         },
-        .ret_load => {
-            const un_node = data[inst_index].un_node;
+        .ret_load => |un_node| {
             const res_ptr_ref = un_node.operand;
             const res_ptr_inst = @enumToInt(res_ptr_ref) - Ref.typed_value_map.len;
             // TODO: this instruction doesn't let us know trivially if there's
@@ -1034,7 +1032,7 @@ fn walkInstruction(
             var result_ref: ?Ref = null;
             while (i > res_ptr_inst) : (i -= 1) {
                 if (tags[i] == .store_node) {
-                    const pl_node = data[i].pl_node;
+                    const pl_node = data[i].store_node;
                     const extra = file.zir.extraData(Zir.Inst.Bin, pl_node.payload_index);
                     if (extra.data.lhs == res_ptr_ref) {
                         // this store_load instruction is indeed pointing at
@@ -1055,17 +1053,10 @@ fn walkInstruction(
                 .expr = .{ .comptimeExpr = 0 },
             };
         },
-        .closure_get => {
-            const inst_node = data[inst_index].inst_node;
-            return try self.walkInstruction(file, parent_scope, parent_src, inst_node.inst, need_type);
-        },
-        .closure_capture => {
-            const un_tok = data[inst_index].un_tok;
-            return try self.walkRef(file, parent_scope, parent_src, un_tok.operand, need_type);
-        },
-        .str => {
-            const str = data[inst_index].str.get(file.zir);
-
+        .closure_get => |inst_node| return try self.walkInstruction(file, parent_scope, parent_src, inst_node.inst, need_type),
+        .closure_capture => |un_tok| return try self.walkRef(file, parent_scope, parent_src, un_tok.operand, need_type),
+        .str => |string| {
+            const str = string.get(file.zir);
             const tRef: ?DocData.Expr = if (!need_type) null else blk: {
                 const arrTypeId = self.types.items.len;
                 try self.types.append(self.arena, .{
@@ -1099,9 +1090,7 @@ fn walkInstruction(
                 .expr = .{ .string = str },
             };
         },
-        .compile_error => {
-            const un_node = data[inst_index].un_node;
-
+        .compile_error => |un_node| {
             var operand: DocData.WalkResult = try self.walkRef(
                 file,
                 parent_scope,
@@ -1117,8 +1106,7 @@ fn walkInstruction(
                 .expr = .{ .compileError = operand_index },
             };
         },
-        .enum_literal => {
-            const str_tok = data[inst_index].str_tok;
+        .enum_literal => |str_tok| {
             const literal = file.zir.nullTerminatedString(str_tok.start);
             const type_index = self.types.items.len;
             try self.types.append(self.arena, .{
@@ -1130,16 +1118,15 @@ fn walkInstruction(
                 .expr = .{ .enumLiteral = literal },
             };
         },
-        .int => {
-            const int = data[inst_index].int;
+        .int => |int| {
             return DocData.WalkResult{
                 .typeRef = .{ .type = @enumToInt(Ref.comptime_int_type) },
                 .expr = .{ .int = .{ .value = int } },
             };
         },
-        .int_big => {
+        .int_big => |str| {
             // @check
-            const str = data[inst_index].str; //.get(file.zir);
+            //.get(file.zir);
             const byte_count = str.len * @sizeOf(std.math.big.Limb);
             const limb_bytes = file.zir.string_bytes[str.start..][0..byte_count];
 
@@ -1159,8 +1146,7 @@ fn walkInstruction(
             };
         },
 
-        .slice_start => {
-            const pl_node = data[inst_index].pl_node;
+        .slice_start => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.SliceStart, pl_node.payload_index);
 
             const slice_index = self.exprs.items.len;
@@ -1192,8 +1178,7 @@ fn walkInstruction(
                 .expr = .{ .sliceIndex = slice_index },
             };
         },
-        .slice_end => {
-            const pl_node = data[inst_index].pl_node;
+        .slice_end => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.SliceEnd, pl_node.payload_index);
 
             const slice_index = self.exprs.items.len;
@@ -1234,8 +1219,7 @@ fn walkInstruction(
                 .expr = .{ .sliceIndex = slice_index },
             };
         },
-        .slice_sentinel => {
-            const pl_node = data[inst_index].pl_node;
+        .slice_sentinel => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.SliceSentinel, pl_node.payload_index);
 
             const slice_index = self.exprs.items.len;
@@ -1305,8 +1289,7 @@ fn walkInstruction(
         // @check still not working when applied in std
         // .array_cat,
         // .array_mul,
-        => {
-            const pl_node = data[inst_index].pl_node;
+        => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.Bin, pl_node.payload_index);
 
             const binop_index = self.exprs.items.len;
@@ -1349,8 +1332,7 @@ fn walkInstruction(
         .cmp_gte,
         .cmp_lt,
         .cmp_lte,
-        => {
-            const pl_node = data[inst_index].pl_node;
+        => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.Bin, pl_node.payload_index);
 
             const binop_index = self.exprs.items.len;
@@ -1413,8 +1395,6 @@ fn walkInstruction(
         .frame_type,
         .frame_size,
         .ptr_to_int,
-        .min,
-        .max,
         .bit_not,
         // @check
         .clz,
@@ -1422,8 +1402,7 @@ fn walkInstruction(
         .pop_count,
         .byte_swap,
         .bit_reverse,
-        => {
-            const un_node = data[inst_index].un_node;
+        => |un_node| {
             const bin_index = self.exprs.items.len;
             try self.exprs.append(self.arena, .{ .builtin = .{ .param = 0 } });
             const param = try self.walkRef(file, parent_scope, parent_src, un_node.operand, false);
@@ -1438,6 +1417,11 @@ fn walkInstruction(
                 .expr = .{ .builtinIndex = bin_index },
             };
         },
+        // @check I moved these from the builtin functions section
+        // since all the code I've changed so far has min and max use
+        // pl_node, and I'm not familiar with this codebase, a
+        // review would be appreciated - GethDW
+        .min, .max => unreachable,
 
         .float_to_int,
         .int_to_float,
@@ -1465,8 +1449,7 @@ fn walkInstruction(
         .offset_of,
         .splat,
         .reduce,
-        => {
-            const pl_node = data[inst_index].pl_node;
+        => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.Bin, pl_node.payload_index);
 
             const binop_index = self.exprs.items.len;
@@ -1498,8 +1481,7 @@ fn walkInstruction(
                 .expr = .{ .builtinBinIndex = binop_index },
             };
         },
-        .error_union_type => {
-            const pl_node = data[inst_index].pl_node;
+        .error_union_type => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.Bin, pl_node.payload_index);
 
             var lhs: DocData.WalkResult = try self.walkRef(
@@ -1528,8 +1510,7 @@ fn walkInstruction(
                 .expr = .{ .errorUnion = type_slot_index },
             };
         },
-        .merge_error_sets => {
-            const pl_node = data[inst_index].pl_node;
+        .merge_error_sets => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.Bin, pl_node.payload_index);
 
             var lhs: DocData.WalkResult = try self.walkRef(
@@ -1569,8 +1550,7 @@ fn walkInstruction(
 
         //     return operand;
         // },
-        .ptr_type => {
-            const ptr = data[inst_index].ptr_type;
+        .ptr_type => |ptr| {
             const extra = file.zir.extraData(Zir.Inst.PtrType, ptr.payload_index);
             var extra_index = extra.end;
 
@@ -1644,9 +1624,7 @@ fn walkInstruction(
                 .expr = .{ .type = type_slot_index },
             };
         },
-        .array_type => {
-            const pl_node = data[inst_index].pl_node;
-
+        .array_type => |pl_node| {
             const bin = file.zir.extraData(Zir.Inst.Bin, pl_node.payload_index).data;
             const len = try self.walkRef(file, parent_scope, parent_src, bin.lhs, false);
             const child = try self.walkRef(file, parent_scope, parent_src, bin.rhs, false);
@@ -1664,8 +1642,7 @@ fn walkInstruction(
                 .expr = .{ .type = type_slot_index },
             };
         },
-        .array_type_sentinel => {
-            const pl_node = data[inst_index].pl_node;
+        .array_type_sentinel => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.ArrayTypeSentinel, pl_node.payload_index);
             const len = try self.walkRef(file, parent_scope, parent_src, extra.data.len, false);
             const sentinel = try self.walkRef(file, parent_scope, parent_src, extra.data.sentinel, false);
@@ -1684,8 +1661,7 @@ fn walkInstruction(
                 .expr = .{ .type = type_slot_index },
             };
         },
-        .array_init => {
-            const pl_node = data[inst_index].pl_node;
+        .array_init => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.MultiOp, pl_node.payload_index);
             const operands = file.zir.refSlice(extra.end, extra.data.operands_len);
             const array_data = try self.arena.alloc(usize, operands.len - 1);
@@ -1705,8 +1681,7 @@ fn walkInstruction(
                 .expr = .{ .array = array_data },
             };
         },
-        .array_init_anon => {
-            const pl_node = data[inst_index].pl_node;
+        .array_init_anon => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.MultiOp, pl_node.payload_index);
             const operands = file.zir.refSlice(extra.end, extra.data.operands_len);
             const array_data = try self.arena.alloc(usize, operands.len);
@@ -1723,8 +1698,7 @@ fn walkInstruction(
                 .expr = .{ .array = array_data },
             };
         },
-        .array_init_ref => {
-            const pl_node = data[inst_index].pl_node;
+        .array_init_ref => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.MultiOp, pl_node.payload_index);
             const operands = file.zir.refSlice(extra.end, extra.data.operands_len);
             const array_data = try self.arena.alloc(usize, operands.len - 1);
@@ -1755,8 +1729,7 @@ fn walkInstruction(
                 .expr = .{ .@"&" = expr_index },
             };
         },
-        .array_init_anon_ref => {
-            const pl_node = data[inst_index].pl_node;
+        .array_init_anon_ref => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.MultiOp, pl_node.payload_index);
             const operands = file.zir.refSlice(extra.end, extra.data.operands_len);
             const array_data = try self.arena.alloc(usize, operands.len);
@@ -1776,25 +1749,21 @@ fn walkInstruction(
                 .expr = .{ .@"&" = expr_index },
             };
         },
-        .float => {
-            const float = data[inst_index].float;
+        .float => |float| {
             return DocData.WalkResult{
                 .typeRef = .{ .type = @enumToInt(Ref.comptime_float_type) },
                 .expr = .{ .float = float },
             };
         },
         // @check: In frontend I'm handling float128 with `.toFixed(2)`
-        .float128 => {
-            const pl_node = data[inst_index].pl_node;
+        .float128 => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.Float128, pl_node.payload_index);
             return DocData.WalkResult{
                 .typeRef = .{ .type = @enumToInt(Ref.comptime_float_type) },
                 .expr = .{ .float128 = extra.data.get() },
             };
         },
-        .negate => {
-            const un_node = data[inst_index].un_node;
-
+        .negate => |un_node| {
             var operand: DocData.WalkResult = try self.walkRef(
                 file,
                 parent_scope,
@@ -1816,9 +1785,7 @@ fn walkInstruction(
             }
             return operand;
         },
-        .size_of => {
-            const un_node = data[inst_index].un_node;
-
+        .size_of => |un_node| {
             const operand = try self.walkRef(
                 file,
                 parent_scope,
@@ -1833,10 +1800,8 @@ fn walkInstruction(
                 .expr = .{ .sizeOf = operand_index },
             };
         },
-        .bit_size_of => {
+        .bit_size_of => |un_node| {
             // not working correctly with `align()`
-            const un_node = data[inst_index].un_node;
-
             const operand = try self.walkRef(
                 file,
                 parent_scope,
@@ -1852,9 +1817,8 @@ fn walkInstruction(
                 .expr = .{ .bitSizeOf = operand_index },
             };
         },
-        .enum_to_int => {
+        .enum_to_int => |un_node| {
             // not working correctly with `align()`
-            const un_node = data[inst_index].un_node;
             const operand = try self.walkRef(
                 file,
                 parent_scope,
@@ -1870,9 +1834,8 @@ fn walkInstruction(
                 .expr = .{ .enumToInt = operand_index },
             };
         },
-        .switch_block => {
+        .switch_block => |pl_node| {
             // WIP
-            const pl_node = data[inst_index].pl_node;
             const extra = file.zir.extraData(Zir.Inst.SwitchBlock, pl_node.payload_index);
             const cond_index = self.exprs.items.len;
 
@@ -1904,8 +1867,7 @@ fn walkInstruction(
                 .expr = .{ .switchIndex = switch_index },
             };
         },
-        .switch_cond => {
-            const un_node = data[inst_index].un_node;
+        .switch_cond => |un_node| {
             const operand = try self.walkRef(
                 file,
                 parent_scope,
@@ -1930,9 +1892,7 @@ fn walkInstruction(
             };
         },
 
-        .typeof => {
-            const un_node = data[inst_index].un_node;
-
+        .typeof => |un_node| {
             const operand = try self.walkRef(
                 file,
                 parent_scope,
@@ -1948,8 +1908,7 @@ fn walkInstruction(
                 .expr = .{ .typeOf = operand_index },
             };
         },
-        .typeof_builtin => {
-            const pl_node = data[inst_index].pl_node;
+        .typeof_builtin => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.Block, pl_node.payload_index);
             const body = file.zir.extra[extra.end..][extra.data.body_len - 1];
             var operand: DocData.WalkResult = try self.walkRef(
@@ -1968,10 +1927,8 @@ fn walkInstruction(
                 .expr = .{ .typeOf = operand_index },
             };
         },
-        .type_info => {
+        .type_info => |un_node| {
             // @check
-            const un_node = data[inst_index].un_node;
-
             const operand = try self.walkRef(
                 file,
                 parent_scope,
@@ -1988,8 +1945,7 @@ fn walkInstruction(
                 .expr = .{ .typeInfo = operand_index },
             };
         },
-        .as_node, .as_shift_operand => {
-            const pl_node = data[inst_index].pl_node;
+        .as_node, .as_shift_operand => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.As, pl_node.payload_index);
             const dest_type_walk = try self.walkRef(
                 file,
@@ -2025,9 +1981,7 @@ fn walkInstruction(
                 },
             };
         },
-        .optional_type => {
-            const un_node = data[inst_index].un_node;
-
+        .optional_type => |un_node| {
             const operand: DocData.WalkResult = try self.walkRef(
                 file,
                 parent_scope,
@@ -2046,17 +2000,15 @@ fn walkInstruction(
                 .expr = .{ .type = operand_idx },
             };
         },
-        .decl_val, .decl_ref => {
-            const str_tok = data[inst_index].str_tok;
+        .decl_val, .decl_ref => |str_tok| {
             const decl_status = parent_scope.resolveDeclName(str_tok.start, file, inst_index);
             return DocData.WalkResult{
                 .expr = .{ .declRef = decl_status },
             };
         },
-        .field_val, .field_call_bind, .field_ptr, .field_type => {
+        .field_val, .field_call_bind, .field_ptr, .field_type => |pl_node| {
             // TODO: field type uses Zir.Inst.FieldType, it just happens to have the
             // same layout as Zir.Inst.Field :^)
-            const pl_node = data[inst_index].pl_node;
             const extra = file.zir.extraData(Zir.Inst.Field, pl_node.payload_index);
 
             var path: std.ArrayListUnmanaged(DocData.Expr) = .{};
@@ -2074,15 +2026,11 @@ fn walkInstruction(
                     }
 
                     const lhs = @enumToInt(lhs_extra.data.lhs) - Ref.typed_value_map.len;
-                    if (tags[lhs] != .field_val and
-                        tags[lhs] != .field_call_bind and
-                        tags[lhs] != .field_ptr and
-                        tags[lhs] != .field_type) break :blk lhs_extra.data.lhs;
-
-                    lhs_extra = file.zir.extraData(
-                        Zir.Inst.Field,
-                        data[lhs].pl_node.payload_index,
-                    );
+                    const pl_idx = switch (file.zir.instructions.get(lhs)) {
+                        .field_val, .field_call_bind, .field_ptr, .field_type => |pl| pl.payload_index,
+                        else => break :blk lhs_extra.data.lhs,
+                    };
+                    lhs_extra = file.zir.extraData(Zir.Inst.Field, pl_idx);
 
                     try path.append(self.arena, .{
                         .string = file.zir.nullTerminatedString(lhs_extra.data.field_name_start),
@@ -2135,8 +2083,7 @@ fn walkInstruction(
             try self.tryResolveRefPath(file, inst_index, path.items);
             return DocData.WalkResult{ .expr = .{ .refPath = path.items } };
         },
-        .int_type => {
-            const int_type = data[inst_index].int_type;
+        .int_type => |int_type| {
             const sign = if (int_type.signedness == .unsigned) "u" else "i";
             const bits = int_type.bit_count;
             const name = try std.fmt.allocPrint(self.arena, "{s}{}", .{ sign, bits });
@@ -2176,8 +2123,7 @@ fn walkInstruction(
                 need_type,
             );
         },
-        .struct_init => {
-            const pl_node = data[inst_index].pl_node;
+        .struct_init => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.StructInit, pl_node.payload_index);
             const field_vals = try self.arena.alloc(
                 DocData.Expr.FieldVal,
@@ -2192,8 +2138,7 @@ fn walkInstruction(
 
                 const field_name = blk: {
                     const field_inst_index = init_extra.data.field_type;
-                    if (tags[field_inst_index] != .field_type) unreachable;
-                    const field_pl_node = data[field_inst_index].pl_node;
+                    const field_pl_node = data[field_inst_index].field_type;
                     const field_extra = file.zir.extraData(
                         Zir.Inst.FieldType,
                         field_pl_node.payload_index,
@@ -2232,9 +2177,7 @@ fn walkInstruction(
                 .expr = .{ .@"struct" = field_vals },
             };
         },
-        .struct_init_empty => {
-            const un_node = data[inst_index].un_node;
-
+        .struct_init_empty => |un_node| {
             var operand: DocData.WalkResult = try self.walkRef(
                 file,
                 parent_scope,
@@ -2248,8 +2191,7 @@ fn walkInstruction(
                 .expr = .{ .@"struct" = &.{} },
             };
         },
-        .struct_init_anon => {
-            const pl_node = data[inst_index].pl_node;
+        .struct_init_anon => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.StructInitAnon, pl_node.payload_index);
 
             const field_vals = try self.arena.alloc(
@@ -2276,8 +2218,7 @@ fn walkInstruction(
                 .expr = .{ .@"struct" = field_vals },
             };
         },
-        .error_set_decl => {
-            const pl_node = data[inst_index].pl_node;
+        .error_set_decl => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.ErrorSetDecl, pl_node.payload_index);
             const fields = try self.arena.alloc(
                 DocData.Type.Field,
@@ -2310,13 +2251,12 @@ fn walkInstruction(
                 .expr = .{ .type = type_slot_index },
             };
         },
-        .param_anytype, .param_anytype_comptime => {
+        .param_anytype, .param_anytype_comptime => |str_tok| {
             // @check if .param_anytype_comptime can be here
             // Analysis of anytype function params happens in `.func`.
             // This switch case handles the case where an expression depends
             // on an anytype field. E.g.: `fn foo(bar: anytype) @TypeOf(bar)`.
             // This means that we're looking at a generic expression.
-            const str_tok = data[inst_index].str_tok;
             const name = str_tok.get(file.zir);
             const cte_slot_index = self.comptime_exprs.items.len;
             try self.comptime_exprs.append(self.arena, .{
@@ -2324,9 +2264,8 @@ fn walkInstruction(
             });
             return DocData.WalkResult{ .expr = .{ .comptimeExpr = cte_slot_index } };
         },
-        .param, .param_comptime => {
+        .param, .param_comptime => |pl_tok| {
             // See .param_anytype for more information.
-            const pl_tok = data[inst_index].pl_tok;
             const extra = file.zir.extraData(Zir.Inst.Param, pl_tok.payload_index);
             const name = file.zir.nullTerminatedString(extra.data.name);
 
@@ -2336,8 +2275,7 @@ fn walkInstruction(
             });
             return DocData.WalkResult{ .expr = .{ .comptimeExpr = cte_slot_index } };
         },
-        .call => {
-            const pl_node = data[inst_index].pl_node;
+        .call => |pl_node| {
             const extra = file.zir.extraData(Zir.Inst.Call, pl_node.payload_index);
 
             const callee = try self.walkRef(file, parent_scope, parent_src, extra.data.callee, need_type);
@@ -2410,8 +2348,7 @@ fn walkInstruction(
 
             return result;
         },
-        .extended => {
-            const extended = data[inst_index].extended;
+        .extended => |extended| {
             switch (extended.opcode) {
                 else => {
                     printWithContext(
@@ -3131,7 +3068,6 @@ fn analyzeDecl(
     priv_decl_indexes: *std.ArrayListUnmanaged(usize),
     d: Zir.DeclIterator.Item,
 ) AutodocErrors!void {
-    const data = file.zir.instructions.items(.data);
     const is_pub = @truncate(u1, d.flags >> 0) != 0;
     // const is_exported = @truncate(u1, d.flags >> 1) != 0;
     const has_align = @truncate(u1, d.flags >> 2) != 0;
@@ -3175,7 +3111,7 @@ fn analyzeDecl(
     _ = addrspace_inst;
 
     // This is known to work because decl values are always block_inlines
-    const value_pl_node = data[value_index].pl_node;
+    const value_pl_node = file.zir.instructions.get(value_index).block_inline;
     const decl_src = try self.srcLocInfo(file, value_pl_node.src_node, parent_src);
 
     const name: []const u8 = switch (decl_name_index) {
@@ -3278,14 +3214,12 @@ fn analyzeUsingnamespaceDecl(
     priv_decl_indexes: *std.ArrayListUnmanaged(usize),
     d: Zir.DeclIterator.Item,
 ) AutodocErrors!void {
-    const data = file.zir.instructions.items(.data);
-
     const is_pub = @truncate(u1, d.flags) != 0;
     const value_index = file.zir.extra[d.sub_index + 6];
     const doc_comment_index = file.zir.extra[d.sub_index + 7];
 
     // This is known to work because decl values are always block_inlines
-    const value_pl_node = data[value_index].pl_node;
+    const value_pl_node = file.zir.instructions.get(value_index).block_inline;
     const decl_src = try self.srcLocInfo(file, value_pl_node.src_node, parent_src);
 
     const doc_comment: ?[]const u8 = if (doc_comment_index != 0)
@@ -3880,8 +3814,9 @@ fn analyzeFancyFunction(
     self_ast_node_index: usize,
     type_slot_index: usize,
 ) AutodocErrors!DocData.WalkResult {
-    const tags = file.zir.instructions.items(.tag);
+    const tags = file.zir.instructions.items(.tags);
     const data = file.zir.instructions.items(.data);
+    const inst = file.zir.instructions.get(inst_index);
     const fn_info = file.zir.getFnInfo(@intCast(u32, inst_index));
 
     try self.ast_nodes.ensureUnusedCapacity(self.arena, fn_info.total_params_len);
@@ -3896,7 +3831,7 @@ fn analyzeFancyFunction(
 
     // TODO: handle scope rules for fn parameters
     for (fn_info.param_body[0..fn_info.total_params_len]) |param_index| {
-        switch (tags[param_index]) {
+        switch (file.zir.instructions.get(param_index)) {
             else => {
                 panicWithContext(
                     file,
@@ -3905,10 +3840,8 @@ fn analyzeFancyFunction(
                     .{@tagName(tags[param_index])},
                 );
             },
-            .param_anytype, .param_anytype_comptime => {
+            .param_anytype, .param_anytype_comptime => |str_tok| {
                 // TODO: where are the doc comments?
-                const str_tok = data[param_index].str_tok;
-
                 const name = str_tok.get(file.zir);
 
                 param_ast_indexes.appendAssumeCapacity(self.ast_nodes.items.len);
@@ -3922,8 +3855,7 @@ fn analyzeFancyFunction(
                     DocData.Expr{ .@"anytype" = .{} },
                 );
             },
-            .param, .param_comptime => {
-                const pl_tok = data[param_index].pl_tok;
+            .param, .param_comptime => |pl_tok| {
                 const extra = file.zir.extraData(Zir.Inst.Param, pl_tok.payload_index);
                 const doc_comment = if (extra.data.doc_comment != 0)
                     file.zir.nullTerminatedString(extra.data.doc_comment)
@@ -3949,7 +3881,7 @@ fn analyzeFancyFunction(
 
     self.ast_nodes.items[self_ast_node_index].fields = param_ast_indexes.items;
 
-    const pl_node = data[inst_index].pl_node;
+    const pl_node = inst.func_fancy;
     const extra = file.zir.extraData(Zir.Inst.FuncFancy, pl_node.payload_index);
 
     var extra_index: usize = extra.end;
@@ -4114,7 +4046,7 @@ fn analyzeFunction(
     type_slot_index: usize,
     ret_is_inferred_error_set: bool,
 ) AutodocErrors!DocData.WalkResult {
-    const tags = file.zir.instructions.items(.tag);
+    const tags = file.zir.instructions.items(.tags);
     const data = file.zir.instructions.items(.data);
     const fn_info = file.zir.getFnInfo(@intCast(u32, inst_index));
 
@@ -4130,7 +4062,7 @@ fn analyzeFunction(
 
     // TODO: handle scope rules for fn parameters
     for (fn_info.param_body[0..fn_info.total_params_len]) |param_index| {
-        switch (tags[param_index]) {
+        switch (file.zir.instructions.get(param_index)) {
             else => {
                 panicWithContext(
                     file,
@@ -4139,10 +4071,8 @@ fn analyzeFunction(
                     .{@tagName(tags[param_index])},
                 );
             },
-            .param_anytype, .param_anytype_comptime => {
+            .param_anytype, .param_anytype_comptime => |str_tok| {
                 // TODO: where are the doc comments?
-                const str_tok = data[param_index].str_tok;
-
                 const name = str_tok.get(file.zir);
 
                 param_ast_indexes.appendAssumeCapacity(self.ast_nodes.items.len);
@@ -4156,8 +4086,7 @@ fn analyzeFunction(
                     DocData.Expr{ .@"anytype" = .{} },
                 );
             },
-            .param, .param_comptime => {
-                const pl_tok = data[param_index].pl_tok;
+            .param, .param_comptime => |pl_tok| {
                 const extra = file.zir.extraData(Zir.Inst.Param, pl_tok.payload_index);
                 const doc_comment = if (extra.data.doc_comment != 0)
                     file.zir.nullTerminatedString(extra.data.doc_comment)
@@ -4258,12 +4187,11 @@ fn getGenericReturnType(
     parent_src: SrcLocInfo, // function decl line
     body_main_block: usize,
 ) !DocData.Expr {
-    const tags = file.zir.instructions.items(.tag);
-    const data = file.zir.instructions.items(.data);
+    const tags = file.zir.instructions.items(.tags);
 
     // We expect `body_main_block` to be the first instruction
     // inside the function body, and for it to be a block instruction.
-    const pl_node = data[body_main_block].pl_node;
+    const pl_node = file.zir.instructions.get(body_main_block).block;
     const extra = file.zir.extraData(Zir.Inst.Block, pl_node.payload_index);
     const maybe_ret_node = file.zir.extra[extra.end..][extra.data.body_len - 4];
     switch (tags[maybe_ret_node]) {
@@ -4609,14 +4537,13 @@ fn walkRef(
 }
 
 fn getBlockInlineBreak(zir: Zir, inst_index: usize) ?Zir.Inst.Ref {
-    const tags = zir.instructions.items(.tag);
+    const tags = zir.instructions.items(.tags);
     const data = zir.instructions.items(.data);
-    const pl_node = data[inst_index].pl_node;
-    const extra = zir.extraData(Zir.Inst.Block, pl_node.payload_index);
+    const break_node = zir.instructions.get(inst_index).break_inline;
+    const extra = zir.extraData(Zir.Inst.Block, break_node.payload_index);
     const break_index = zir.extra[extra.end..][extra.data.body_len - 1];
     if (tags[break_index] == .condbr_inline) return null;
-    std.debug.assert(tags[break_index] == .break_inline);
-    return data[break_index].@"break".operand;
+    return data[break_index].break_inline.operand;
 }
 
 fn printWithContext(file: *File, inst: usize, comptime fmt: []const u8, args: anytype) void {
