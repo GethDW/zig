@@ -121,1713 +121,934 @@ pub const main_struct_inst: Inst.Index = 0;
 /// These are untyped instructions generated from an Abstract Syntax Tree.
 /// The data here is immutable because it is possible to have multiple
 /// analyses on the same ZIR happening at the same time.
-pub const Inst = struct {
-    tag: Tag,
-    data: Data,
+pub const Inst = union(enum(u8)) {
+    const info = @typeInfo(Inst).Union;
+    pub const Tag = info.tag_type.?;
+    pub const Data = @Type(.{ .Union = .{
+        .layout = .Auto,
+        .tag_type = null,
+        .fields = info.fields,
+        .decls = &.{},
+    } });
 
-    /// These names are used directly as the instruction names in the text format.
-    /// See `data_field_map` for a list of which `Data` fields are used by each `Tag`.
-    pub const Tag = enum(u8) {
-        /// Arithmetic addition, asserts no integer overflow.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        add,
-        /// Twos complement wrapping integer addition.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        addwrap,
-        /// Saturating addition.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        add_sat,
-        /// The same as `add` except no safety check.
-        add_unsafe,
-        /// Arithmetic subtraction. Asserts no integer overflow.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        sub,
-        /// Twos complement wrapping integer subtraction.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        subwrap,
-        /// Saturating subtraction.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        sub_sat,
-        /// Arithmetic multiplication. Asserts no integer overflow.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        mul,
-        /// Twos complement wrapping integer multiplication.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        mulwrap,
-        /// Saturating multiplication.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        mul_sat,
-        /// Implements the `@divExact` builtin.
-        /// Uses the `pl_node` union field with payload `Bin`.
-        div_exact,
-        /// Implements the `@divFloor` builtin.
-        /// Uses the `pl_node` union field with payload `Bin`.
-        div_floor,
-        /// Implements the `@divTrunc` builtin.
-        /// Uses the `pl_node` union field with payload `Bin`.
-        div_trunc,
-        /// Implements the `@mod` builtin.
-        /// Uses the `pl_node` union field with payload `Bin`.
-        mod,
-        /// Implements the `@rem` builtin.
-        /// Uses the `pl_node` union field with payload `Bin`.
-        rem,
-        /// Ambiguously remainder division or modulus. If the computation would possibly have
-        /// a different value depending on whether the operation is remainder division or modulus,
-        /// a compile error is emitted. Otherwise the computation is performed.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        mod_rem,
-        /// Integer shift-left. Zeroes are shifted in from the right hand side.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        shl,
-        /// Implements the `@shlExact` builtin.
-        /// Uses the `pl_node` union field with payload `Bin`.
-        shl_exact,
-        /// Saturating shift-left.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        shl_sat,
-        /// Integer shift-right. Arithmetic or logical depending on the signedness of
-        /// the integer type.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        shr,
-        /// Implements the `@shrExact` builtin.
-        /// Uses the `pl_node` union field with payload `Bin`.
-        shr_exact,
+    /// Arithmetic addition, asserts no integer overflow.
+    /// Payload is `Bin`.
+    add: PayloadNode,
+    /// Twos complement wrapping integer addition.
+    /// Payload is `Bin`.
+    addwrap: PayloadNode,
+    /// Saturating addition.
+    /// Payload is `Bin`.
+    add_sat: PayloadNode,
+    /// The same as `add` except no safety check.
+    add_unsafe: PayloadNode,
+    /// Arithmetic subtraction. Asserts no integer overflow.
+    /// Payload is `Bin`.
+    sub: PayloadNode,
+    /// Twos complement wrapping integer subtraction.
+    /// Payload is `Bin`.
+    subwrap: PayloadNode,
+    /// Saturating subtraction.
+    /// Payload is `Bin`.
+    sub_sat: PayloadNode,
+    /// Arithmetic multiplication. Asserts no integer overflow.
+    /// Payload is `Bin`.
+    mul: PayloadNode,
+    /// Twos complement wrapping integer multiplication.
+    /// Payload is `Bin`.
+    mulwrap: PayloadNode,
+    /// Saturating multiplication.
+    /// Payload is `Bin`.
+    mul_sat: PayloadNode,
+    /// Implements the `@divExact` builtin.
+    /// Payload is `Bin`.
+    div_exact: PayloadNode,
+    /// Implements the `@divFloor` builtin.
+    /// Payload is `Bin`.
+    div_floor: PayloadNode,
+    /// Implements the `@divTrunc` builtin.
+    /// Payload is `Bin`.
+    div_trunc: PayloadNode,
+    /// Implements the `@mod` builtin.
+    /// Payload is `Bin`.
+    mod: PayloadNode,
+    /// Implements the `@rem` builtin.
+    /// Payload is `Bin`.
+    rem: PayloadNode,
+    /// Ambiguously remainder division or modulus. If the computation would possibly have
+    /// a different value depending on whether the operation is remainder division or modulus,
+    /// a compile error is emitted. Otherwise the computation is performed.
+    /// Payload is `Bin`.
+    mod_rem: PayloadNode,
+    /// Integer shift-left. Zeroes are shifted in from the right hand side.
+    /// Payload is `Bin`.
+    shl: PayloadNode,
+    /// Implements the `@shlExact` builtin.
+    /// Payload is `Bin`.
+    shl_exact: PayloadNode,
+    /// Saturating shift-left.
+    /// Payload is `Bin`.
+    shl_sat: PayloadNode,
+    /// Integer shift-right. Arithmetic or logical depending on the signedness of
+    /// the integer type.
+    /// Payload is `Bin`.
+    shr: PayloadNode,
+    /// Implements the `@shrExact` builtin.
+    /// Payload is `Bin`.
+    shr_exact: PayloadNode,
 
-        /// Declares a parameter of the current function. Used for:
-        /// * debug info
-        /// * checking shadowing against declarations in the current namespace
-        /// * parameter type expressions referencing other parameters
-        /// These occur in the block outside a function body (the same block as
-        /// contains the func instruction).
-        /// Uses the `pl_tok` field. Token is the parameter name, payload is a `Param`.
-        param,
-        /// Same as `param` except the parameter is marked comptime.
-        param_comptime,
-        /// Same as `param` except the parameter is marked anytype.
-        /// Uses the `str_tok` field. Token is the parameter name. String is the parameter name.
-        param_anytype,
-        /// Same as `param` except the parameter is marked both comptime and anytype.
-        /// Uses the `str_tok` field. Token is the parameter name. String is the parameter name.
-        param_anytype_comptime,
-        /// Array concatenation. `a ++ b`
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        array_cat,
-        /// Array multiplication `a ** b`
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        array_mul,
-        /// `[N]T` syntax. No source location provided.
-        /// Uses the `pl_node` union field. Payload is `Bin`. lhs is length, rhs is element type.
-        array_type,
-        /// `[N:S]T` syntax. Source location is the array type expression node.
-        /// Uses the `pl_node` union field. Payload is `ArrayTypeSentinel`.
-        array_type_sentinel,
-        /// `@Vector` builtin.
-        /// Uses the `pl_node` union field with `Bin` payload.
-        /// lhs is length, rhs is element type.
-        vector_type,
-        /// Given an indexable type, returns the type of the element at given index.
-        /// Uses the `bin` union field. lhs is the indexable type, rhs is the index.
-        elem_type_index,
-        /// Given a pointer to an indexable object, returns the len property. This is
-        /// used by for loops. This instruction also emits a for-loop specific compile
-        /// error if the indexable object is not indexable.
-        /// Uses the `un_node` field. The AST node is the for loop node.
-        indexable_ptr_len,
-        /// Create a `anyframe->T` type.
-        /// Uses the `un_node` field.
-        anyframe_type,
-        /// Type coercion. No source location attached.
-        /// Uses the `bin` field.
-        as,
-        /// Type coercion to the function's return type.
-        /// Uses the `pl_node` field. Payload is `As`. AST node could be many things.
-        as_node,
-        /// Same as `as_node` but ignores runtime to comptime int error.
-        as_shift_operand,
-        /// Bitwise AND. `&`
-        bit_and,
-        /// Reinterpret the memory representation of a value as a different type.
-        /// Uses the pl_node field with payload `Bin`.
-        bitcast,
-        /// Bitwise NOT. `~`
-        /// Uses `un_tok`.
-        bit_not,
-        /// Bitwise OR. `|`
-        bit_or,
-        /// A labeled block of code, which can return a value.
-        /// Uses the `pl_node` union field. Payload is `Block`.
-        block,
-        /// Like `block`, but forces full evaluation of its contents at compile-time.
-        /// Uses the `pl_node` union field. Payload is `Block`.
-        block_comptime,
-        /// A list of instructions which are analyzed in the parent context, without
-        /// generating a runtime block. Must terminate with an "inline" variant of
-        /// a noreturn instruction.
-        /// Uses the `pl_node` union field. Payload is `Block`.
-        block_inline,
-        /// Implements `suspend {...}`.
-        /// Uses the `pl_node` union field. Payload is `Block`.
-        suspend_block,
-        /// Boolean NOT. See also `bit_not`.
-        /// Uses the `un_tok` field.
-        bool_not,
-        /// Short-circuiting boolean `and`. `lhs` is a boolean `Ref` and the other operand
-        /// is a block, which is evaluated if `lhs` is `true`.
-        /// Uses the `bool_br` union field.
-        bool_br_and,
-        /// Short-circuiting boolean `or`. `lhs` is a boolean `Ref` and the other operand
-        /// is a block, which is evaluated if `lhs` is `false`.
-        /// Uses the `bool_br` union field.
-        bool_br_or,
-        /// Return a value from a block.
-        /// Uses the `break` union field.
-        /// Uses the source information from previous instruction.
-        @"break",
-        /// Return a value from a block. This instruction is used as the terminator
-        /// of a `block_inline`. It allows using the return value from `Sema.analyzeBody`.
-        /// This instruction may also be used when it is known that there is only one
-        /// break instruction in a block, and the target block is the parent.
-        /// Uses the `break` union field.
-        break_inline,
-        /// Checks that comptime control flow does not happen inside a runtime block.
-        /// Uses the `un_node` union field.
-        check_comptime_control_flow,
-        /// Function call.
-        /// Uses the `pl_node` union field with payload `Call`.
-        /// AST node is the function call.
-        call,
-        /// Implements the `@call` builtin.
-        /// Uses the `pl_node` union field with payload `BuiltinCall`.
-        /// AST node is the builtin call.
-        builtin_call,
-        /// `<`
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        cmp_lt,
-        /// `<=`
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        cmp_lte,
-        /// `==`
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        cmp_eq,
-        /// `>=`
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        cmp_gte,
-        /// `>`
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        cmp_gt,
-        /// `!=`
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        cmp_neq,
-        /// Coerces a result location pointer to a new element type. It is evaluated "backwards"-
-        /// as type coercion from the new element type to the old element type.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        /// LHS is destination element type, RHS is result pointer.
-        coerce_result_ptr,
-        /// Conditional branch. Splits control flow based on a boolean condition value.
-        /// Uses the `pl_node` union field. AST node is an if, while, for, etc.
-        /// Payload is `CondBr`.
-        condbr,
-        /// Same as `condbr`, except the condition is coerced to a comptime value, and
-        /// only the taken branch is analyzed. The then block and else block must
-        /// terminate with an "inline" variant of a noreturn instruction.
-        condbr_inline,
-        /// Given an operand which is an error union, splits control flow. In
-        /// case of error, control flow goes into the block that is part of this
-        /// instruction, which is guaranteed to end with a return instruction
-        /// and never breaks out of the block.
-        /// In the case of non-error, control flow proceeds to the next instruction
-        /// after the `try`, with the result of this instruction being the unwrapped
-        /// payload value, as if `err_union_payload_unsafe` was executed on the operand.
-        /// Uses the `pl_node` union field. Payload is `Try`.
-        @"try",
-        /// Same as `try` except the operand is a pointer and the result is a pointer.
-        try_ptr,
-        /// An error set type definition. Contains a list of field names.
-        /// Uses the `pl_node` union field. Payload is `ErrorSetDecl`.
-        error_set_decl,
-        error_set_decl_anon,
-        error_set_decl_func,
-        /// Declares the beginning of a statement. Used for debug info.
-        /// Uses the `dbg_stmt` union field. The line and column are offset
-        /// from the parent declaration.
-        dbg_stmt,
-        /// Marks a variable declaration. Used for debug info.
-        /// Uses the `str_op` union field. The string is the local variable name,
-        /// and the operand is the pointer to the variable's location. The local
-        /// may be a const or a var.
-        dbg_var_ptr,
-        /// Same as `dbg_var_ptr` but the local is always a const and the operand
-        /// is the local's value.
-        dbg_var_val,
-        /// Marks the beginning of a semantic scope for debug info variables.
-        dbg_block_begin,
-        /// Marks the end of a semantic scope for debug info variables.
-        dbg_block_end,
-        /// Uses a name to identify a Decl and takes a pointer to it.
-        /// Uses the `str_tok` union field.
-        decl_ref,
-        /// Uses a name to identify a Decl and uses it as a value.
-        /// Uses the `str_tok` union field.
-        decl_val,
-        /// Load the value from a pointer. Assumes `x.*` syntax.
-        /// Uses `un_node` field. AST node is the `x.*` syntax.
-        load,
-        /// Arithmetic division. Asserts no integer overflow.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        div,
-        /// Given a pointer to an array, slice, or pointer, returns a pointer to the element at
-        /// the provided index.
-        /// Uses the `pl_node` union field. AST node is a[b] syntax. Payload is `Bin`.
-        elem_ptr_node,
-        /// Same as `elem_ptr_node` but used only for for loop.
-        /// Uses the `pl_node` union field. AST node is the condition of a for loop.
-        /// Payload is `Bin`.
-        /// No OOB safety check is emitted.
-        elem_ptr,
-        /// Same as `elem_ptr_node` except the index is stored immediately rather than
-        /// as a reference to another ZIR instruction.
-        /// Uses the `pl_node` union field. AST node is an element inside array initialization
-        /// syntax. Payload is `ElemPtrImm`.
-        /// This instruction has a way to set the result type to be a
-        /// single-pointer or a many-pointer.
-        elem_ptr_imm,
-        /// Given an array, slice, or pointer, returns the element at the provided index.
-        /// Uses the `pl_node` union field. AST node is a[b] syntax. Payload is `Bin`.
-        elem_val_node,
-        /// Same as `elem_val_node` but used only for for loop.
-        /// Uses the `pl_node` union field. AST node is the condition of a for loop.
-        /// Payload is `Bin`.
-        /// No OOB safety check is emitted.
-        elem_val,
-        /// Emits a compile error if the operand is not `void`.
-        /// Uses the `un_node` field.
-        ensure_result_used,
-        /// Emits a compile error if an error is ignored.
-        /// Uses the `un_node` field.
-        ensure_result_non_error,
-        /// Emits a compile error error union payload is not void.
-        ensure_err_union_payload_void,
-        /// Create a `E!T` type.
-        /// Uses the `pl_node` field with `Bin` payload.
-        error_union_type,
-        /// `error.Foo` syntax. Uses the `str_tok` field of the Data union.
-        error_value,
-        /// Implements the `@export` builtin function, based on either an identifier to a Decl,
-        /// or field access of a Decl. The thing being exported is the Decl.
-        /// Uses the `pl_node` union field. Payload is `Export`.
-        @"export",
-        /// Implements the `@export` builtin function, based on a comptime-known value.
-        /// The thing being exported is the comptime-known value which is the operand.
-        /// Uses the `pl_node` union field. Payload is `ExportValue`.
-        export_value,
-        /// Given a pointer to a struct or object that contains virtual fields, returns a pointer
-        /// to the named field. The field name is stored in string_bytes. Used by a.b syntax.
-        /// Uses `pl_node` field. The AST node is the a.b syntax. Payload is Field.
-        field_ptr,
-        /// Same as `field_ptr` but used for struct init.
-        field_ptr_init,
-        /// Given a struct or object that contains virtual fields, returns the named field.
-        /// The field name is stored in string_bytes. Used by a.b syntax.
-        /// This instruction also accepts a pointer.
-        /// Uses `pl_node` field. The AST node is the a.b syntax. Payload is Field.
-        field_val,
-        /// Given a pointer to a struct or object that contains virtual fields, returns the
-        /// named field.  If there is no named field, searches in the type for a decl that
-        /// matches the field name.  The decl is resolved and we ensure that it's a function
-        /// which can accept the object as the first parameter, with one pointer fixup.  If
-        /// all of that works, this instruction produces a special "bound function" value
-        /// which contains both the function and the saved first parameter value.
-        /// Bound functions may only be used as the function parameter to a `call` or
-        /// `builtin_call` instruction.  Any other use is invalid zir and may crash the compiler.
-        field_call_bind,
-        /// Given a pointer to a struct or object that contains virtual fields, returns a pointer
-        /// to the named field. The field name is a comptime instruction. Used by @field.
-        /// Uses `pl_node` field. The AST node is the builtin call. Payload is FieldNamed.
-        field_ptr_named,
-        /// Given a struct or object that contains virtual fields, returns the named field.
-        /// The field name is a comptime instruction. Used by @field.
-        /// Uses `pl_node` field. The AST node is the builtin call. Payload is FieldNamed.
-        field_val_named,
-        /// Returns a function type, or a function instance, depending on whether
-        /// the body_len is 0. Calling convention is auto.
-        /// Uses the `pl_node` union field. `payload_index` points to a `Func`.
-        func,
-        /// Same as `func` but has an inferred error set.
-        func_inferred,
-        /// Represents a function declaration or function prototype, depending on
-        /// whether body_len is 0.
-        /// Uses the `pl_node` union field. `payload_index` points to a `FuncFancy`.
-        func_fancy,
-        /// Implements the `@import` builtin.
-        /// Uses the `str_tok` field.
-        import,
-        /// Integer literal that fits in a u64. Uses the `int` union field.
-        int,
-        /// Arbitrary sized integer literal. Uses the `str` union field.
-        int_big,
-        /// A float literal that fits in a f64. Uses the float union value.
-        float,
-        /// A float literal that fits in a f128. Uses the `pl_node` union value.
-        /// Payload is `Float128`.
-        float128,
-        /// Make an integer type out of signedness and bit count.
-        /// Payload is `int_type`
-        int_type,
-        /// Return a boolean false if an optional is null. `x != null`
-        /// Uses the `un_node` field.
-        is_non_null,
-        /// Return a boolean false if an optional is null. `x.* != null`
-        /// Uses the `un_node` field.
-        is_non_null_ptr,
-        /// Return a boolean false if value is an error
-        /// Uses the `un_node` field.
-        is_non_err,
-        /// Return a boolean false if dereferenced pointer is an error
-        /// Uses the `un_node` field.
-        is_non_err_ptr,
-        /// Same as `is_non_er` but doesn't validate that the type can be an error.
-        /// Uses the `un_node` field.
-        ret_is_non_err,
-        /// A labeled block of code that loops forever. At the end of the body will have either
-        /// a `repeat` instruction or a `repeat_inline` instruction.
-        /// Uses the `pl_node` field. The AST node is either a for loop or while loop.
-        /// This ZIR instruction is needed because AIR does not (yet?) match ZIR, and Sema
-        /// needs to emit more than 1 AIR block for this instruction.
-        /// The payload is `Block`.
-        loop,
-        /// Sends runtime control flow back to the beginning of the current block.
-        /// Uses the `node` field.
-        repeat,
-        /// Sends comptime control flow back to the beginning of the current block.
-        /// Uses the `node` field.
-        repeat_inline,
-        /// Asserts that all the lengths provided match. Used to build a for loop.
-        /// Return value is the length as a usize.
-        /// Uses the `pl_node` field with payload `MultiOp`.
-        /// There is exactly one item corresponding to each AST node inside the for
-        /// loop condition. Any item may be `none`, indicating an unbounded range.
-        /// Illegal behaviors:
-        ///  * If all lengths are unbounded ranges (always a compile error).
-        ///  * If any two lengths do not match each other.
-        for_len,
-        /// Merge two error sets into one, `E1 || E2`.
-        /// Uses the `pl_node` field with payload `Bin`.
-        merge_error_sets,
-        /// Turns an R-Value into a const L-Value. In other words, it takes a value,
-        /// stores it in a memory location, and returns a const pointer to it. If the value
-        /// is `comptime`, the memory location is global static constant data. Otherwise,
-        /// the memory location is in the stack frame, local to the scope containing the
-        /// instruction.
-        /// Uses the `un_tok` union field.
-        ref,
-        /// Sends control flow back to the function's callee.
-        /// Includes an operand as the return value.
-        /// Includes an AST node source location.
-        /// Uses the `un_node` union field.
-        ret_node,
-        /// Sends control flow back to the function's callee.
-        /// The operand is a `ret_ptr` instruction, where the return value can be found.
-        /// Includes an AST node source location.
-        /// Uses the `un_node` union field.
-        ret_load,
-        /// Sends control flow back to the function's callee.
-        /// Includes an operand as the return value.
-        /// Includes a token source location.
-        /// Uses the `un_tok` union field.
-        ret_implicit,
-        /// Sends control flow back to the function's callee.
-        /// The return operand is `error.foo` where `foo` is given by the string.
-        /// If the current function has an inferred error set, the error given by the
-        /// name is added to it.
-        /// Uses the `str_tok` union field.
-        ret_err_value,
-        /// A string name is provided which is an anonymous error set value.
-        /// If the current function has an inferred error set, the error given by the
-        /// name is added to it.
-        /// Results in the error code. Note that control flow is not diverted with
-        /// this instruction; a following 'ret' instruction will do the diversion.
-        /// Uses the `str_tok` union field.
-        ret_err_value_code,
-        /// Obtains a pointer to the return value.
-        /// Uses the `node` union field.
-        ret_ptr,
-        /// Obtains the return type of the in-scope function.
-        /// Uses the `node` union field.
-        ret_type,
-        /// Create a pointer type which can have a sentinel, alignment, address space, and/or bit range.
-        /// Uses the `ptr_type` union field.
-        ptr_type,
-        /// Slice operation `lhs[rhs..]`. No sentinel and no end offset.
-        /// Returns a pointer to the subslice.
-        /// Uses the `pl_node` field. AST node is the slice syntax. Payload is `SliceStart`.
-        slice_start,
-        /// Slice operation `array_ptr[start..end]`. No sentinel.
-        /// Returns a pointer to the subslice.
-        /// Uses the `pl_node` field. AST node is the slice syntax. Payload is `SliceEnd`.
-        slice_end,
-        /// Slice operation `array_ptr[start..end:sentinel]`.
-        /// Returns a pointer to the subslice.
-        /// Uses the `pl_node` field. AST node is the slice syntax. Payload is `SliceSentinel`.
-        slice_sentinel,
-        /// Write a value to a pointer. For loading, see `load`.
-        /// Source location is assumed to be same as previous instruction.
-        /// Uses the `bin` union field.
-        store,
-        /// Same as `store` except provides a source location.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        store_node,
-        /// This instruction is not really supposed to be emitted from AstGen; nevertheless it
-        /// is sometimes emitted due to deficiencies in AstGen. When Sema sees this instruction,
-        /// it must clean up after AstGen's mess by looking at various context clues and
-        /// then treating it as one of the following:
-        ///  * no-op
-        ///  * store_to_inferred_ptr
-        ///  * store
-        /// Uses the `bin` union field with LHS as the pointer to store to.
-        store_to_block_ptr,
-        /// Same as `store` but the type of the value being stored will be used to infer
-        /// the pointer type.
-        /// Uses the `bin` union field - Astgen.zig depends on the ability to change
-        /// the tag of an instruction from `store_to_block_ptr` to `store_to_inferred_ptr`
-        /// without changing the data.
-        store_to_inferred_ptr,
-        /// String Literal. Makes an anonymous Decl and then takes a pointer to it.
-        /// Uses the `str` union field.
-        str,
-        /// Arithmetic negation. Asserts no integer overflow.
-        /// Same as sub with a lhs of 0, split into a separate instruction to save memory.
-        /// Uses `un_node`.
-        negate,
-        /// Twos complement wrapping integer negation.
-        /// Same as subwrap with a lhs of 0, split into a separate instruction to save memory.
-        /// Uses `un_node`.
-        negate_wrap,
-        /// Returns the type of a value.
-        /// Uses the `un_node` field.
-        typeof,
-        /// Implements `@TypeOf` for one operand.
-        /// Uses the `pl_node` field.
-        typeof_builtin,
-        /// Given a value, look at the type of it, which must be an integer type.
-        /// Returns the integer type for the RHS of a shift operation.
-        /// Uses the `un_node` field.
-        typeof_log2_int_type,
-        /// Asserts control-flow will not reach this instruction (`unreachable`).
-        /// Uses the `@"unreachable"` union field.
-        @"unreachable",
-        /// Bitwise XOR. `^`
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        xor,
-        /// Create an optional type '?T'
-        /// Uses the `un_node` field.
-        optional_type,
-        /// ?T => T with safety.
-        /// Given an optional value, returns the payload value, with a safety check that
-        /// the value is non-null. Used for `orelse`, `if` and `while`.
-        /// Uses the `un_node` field.
-        optional_payload_safe,
-        /// ?T => T without safety.
-        /// Given an optional value, returns the payload value. No safety checks.
-        /// Uses the `un_node` field.
-        optional_payload_unsafe,
-        /// *?T => *T with safety.
-        /// Given a pointer to an optional value, returns a pointer to the payload value,
-        /// with a safety check that the value is non-null. Used for `orelse`, `if` and `while`.
-        /// Uses the `un_node` field.
-        optional_payload_safe_ptr,
-        /// *?T => *T without safety.
-        /// Given a pointer to an optional value, returns a pointer to the payload value.
-        /// No safety checks.
-        /// Uses the `un_node` field.
-        optional_payload_unsafe_ptr,
-        /// E!T => T without safety.
-        /// Given an error union value, returns the payload value. No safety checks.
-        /// Uses the `un_node` field.
-        err_union_payload_unsafe,
-        /// *E!T => *T without safety.
-        /// Given a pointer to a error union value, returns a pointer to the payload value.
-        /// No safety checks.
-        /// Uses the `un_node` field.
-        err_union_payload_unsafe_ptr,
-        /// E!T => E without safety.
-        /// Given an error union value, returns the error code. No safety checks.
-        /// Uses the `un_node` field.
-        err_union_code,
-        /// *E!T => E without safety.
-        /// Given a pointer to an error union value, returns the error code. No safety checks.
-        /// Uses the `un_node` field.
-        err_union_code_ptr,
-        /// An enum literal. Uses the `str_tok` union field.
-        enum_literal,
-        /// A switch expression. Uses the `pl_node` union field.
-        /// AST node is the switch, payload is `SwitchBlock`.
-        switch_block,
-        /// Produces the value that will be switched on. For example, for
-        /// integers, it returns the integer with no modifications. For tagged unions, it
-        /// returns the active enum tag.
-        /// Uses the `un_node` union field.
-        switch_cond,
-        /// Same as `switch_cond`, except the input operand is a pointer to
-        /// what will be switched on.
-        /// Uses the `un_node` union field.
-        switch_cond_ref,
-        /// Produces the capture value for a switch prong.
-        /// Uses the `switch_capture` field.
-        /// If the `prong_index` field is max int, it means this is the capture
-        /// for the else/`_` prong.
-        switch_capture,
-        /// Produces the capture value for a switch prong.
-        /// Result is a pointer to the value.
-        /// Uses the `switch_capture` field.
-        /// If the `prong_index` field is max int, it means this is the capture
-        /// for the else/`_` prong.
-        switch_capture_ref,
-        /// Produces the capture value for a switch prong.
-        /// The prong is one of the multi cases.
-        /// Uses the `switch_capture` field.
-        switch_capture_multi,
-        /// Produces the capture value for a switch prong.
-        /// The prong is one of the multi cases.
-        /// Result is a pointer to the value.
-        /// Uses the `switch_capture` field.
-        switch_capture_multi_ref,
-        /// Produces the capture value for an inline switch prong tag capture.
-        /// Uses the `un_tok` field.
-        switch_capture_tag,
-        /// Given a
-        ///   *A returns *A
-        ///   *E!A returns *A
-        ///   *?A returns *A
-        /// Uses the `un_node` field.
-        array_base_ptr,
-        /// Given a
-        ///   *S returns *S
-        ///   *E!S returns *S
-        ///   *?S returns *S
-        /// Uses the `un_node` field.
-        field_base_ptr,
-        /// Checks that the type supports array init syntax.
-        /// Uses the `un_node` field.
-        validate_array_init_ty,
-        /// Checks that the type supports struct init syntax.
-        /// Uses the `un_node` field.
-        validate_struct_init_ty,
-        /// Given a set of `field_ptr` instructions, assumes they are all part of a struct
-        /// initialization expression, and emits compile errors for duplicate fields
-        /// as well as missing fields, if applicable.
-        /// This instruction asserts that there is at least one field_ptr instruction,
-        /// because it must use one of them to find out the struct type.
-        /// Uses the `pl_node` field. Payload is `Block`.
-        validate_struct_init,
-        /// Given a set of `elem_ptr_imm` instructions, assumes they are all part of an
-        /// array initialization expression, and emits a compile error if the number of
-        /// elements does not match the array type.
-        /// This instruction asserts that there is at least one `elem_ptr_imm` instruction,
-        /// because it must use one of them to find out the array type.
-        /// Uses the `pl_node` field. Payload is `Block`.
-        validate_array_init,
-        /// Check that operand type supports the dereference operand (.*).
-        /// Uses the `un_node` field.
-        validate_deref,
-        /// A struct literal with a specified type, with no fields.
-        /// Uses the `un_node` field.
-        struct_init_empty,
-        /// Given a struct or union, and a field name as a string index,
-        /// returns the field type. Uses the `pl_node` field. Payload is `FieldType`.
-        field_type,
-        /// Given a struct or union, and a field name as a Ref,
-        /// returns the field type. Uses the `pl_node` field. Payload is `FieldTypeRef`.
-        field_type_ref,
-        /// Finalizes a typed struct or union initialization, performs validation, and returns the
-        /// struct or union value.
-        /// Uses the `pl_node` field. Payload is `StructInit`.
-        struct_init,
-        /// Struct initialization syntax, make the result a pointer.
-        /// Uses the `pl_node` field. Payload is `StructInit`.
-        struct_init_ref,
-        /// Struct initialization without a type.
-        /// Uses the `pl_node` field. Payload is `StructInitAnon`.
-        struct_init_anon,
-        /// Anonymous struct initialization syntax, make the result a pointer.
-        /// Uses the `pl_node` field. Payload is `StructInitAnon`.
-        struct_init_anon_ref,
-        /// Array initialization syntax.
-        /// Uses the `pl_node` field. Payload is `MultiOp`.
-        array_init,
-        /// Anonymous array initialization syntax.
-        /// Uses the `pl_node` field. Payload is `MultiOp`.
-        array_init_anon,
-        /// Array initialization syntax, make the result a pointer.
-        /// Uses the `pl_node` field. Payload is `MultiOp`.
-        array_init_ref,
-        /// Anonymous array initialization syntax, make the result a pointer.
-        /// Uses the `pl_node` field. Payload is `MultiOp`.
-        array_init_anon_ref,
-        /// Implements the `@unionInit` builtin.
-        /// Uses the `pl_node` field. Payload is `UnionInit`.
-        union_init,
-        /// Implements the `@typeInfo` builtin. Uses `un_node`.
-        type_info,
-        /// Implements the `@sizeOf` builtin. Uses `un_node`.
-        size_of,
-        /// Implements the `@bitSizeOf` builtin. Uses `un_node`.
-        bit_size_of,
+    /// Declares a parameter of the current function. Used for:
+    /// * debug info
+    /// * checking shadowing against declarations in the current namespace
+    /// * parameter type expressions referencing other parameters
+    /// These occur in the block outside a function body (the same block as
+    /// contains the func instruction).
+    /// Token is the parameter name, payload is a `Param`.
+    param: PayloadToken,
+    /// Same as `param` except the parameter is marked comptime.
+    param_comptime: PayloadToken,
+    /// Same as `param` except the parameter is marked anytype.
+    /// Token is the parameter name. String is the parameter name.
+    param_anytype: StringToken,
+    /// Same as `param` except the parameter is marked both comptime and anytype.
+    /// Token is the parameter name. String is the parameter name.
+    param_anytype_comptime: StringToken,
+    /// Array concatenation. `a ++ b`
+    /// Payload is `Bin`.
+    array_cat: PayloadNode,
+    /// Array multiplication `a ** b`
+    /// Payload is `Bin`.
+    array_mul: PayloadNode,
+    /// `[N]T` syntax. No source location provided.
+    /// Payload is `Bin`. lhs is length, rhs is element type.
+    array_type: PayloadNode,
+    /// `[N:S]T` syntax. Source location is the array type expression node.
+    /// Payload is `ArrayTypeSentinel`.
+    array_type_sentinel: PayloadNode,
+    /// `@Vector` builtin.
+    /// Payload is `Bin`. lhs is length, rhs is element type.
+    vector_type: PayloadNode,
+    /// Given an indexable type, returns the type of the element at given index.
+    /// lhs is the indexable type, rhs is the index.
+    elem_type_index: Bin,
+    /// Given a pointer to an indexable object, returns the len property. This is
+    /// used by for loops. This instruction also emits a for-loop specific compile
+    /// error if the indexable object is not indexable.
+    /// The AST node is the for loop node.
+    indexable_ptr_len: UnaryNode,
+    /// Create a `anyframe->T` type.
+    anyframe_type: UnaryNode,
+    /// Type coercion. No source location attached.
+    as: Bin,
+    /// Type coercion to the function's return type.
+    /// Payload is `As`. AST node could be many things.
+    as_node: PayloadNode,
+    /// Same as `as_node` but ignores runtime to comptime int error.
+    as_shift_operand: PayloadNode,
+    /// Bitwise AND. `&`
+    bit_and: Bin,
+    /// Reinterpret the memory representation of a value as a different type.
+    /// Payload is `Bin`.
+    bitcast: PayloadNode,
+    /// Bitwise NOT. `~`
+    bit_not: UnaryToken,
+    /// Bitwise OR. `|`
+    bit_or: Bin,
+    /// A labeled block of code, which can return a value.
+    /// Payload is `Block`.
+    block: PayloadNode,
+    /// Like `block`, but forces full evaluation of its contents at compile-time.
+    /// Payload is `Block`.
+    block_comptime: PayloadNode,
+    /// A list of instructions which are analyzed in the parent context, without
+    /// generating a runtime block. Must terminate with an "inline" variant of
+    /// a noreturn instruction.
+    /// Payload is `Block`.
+    block_inline: PayloadNode,
+    /// Implements `suspend {...}`.
+    /// Payload is `Block`.
+    suspend_block: PayloadNode,
+    /// Boolean NOT. See also `bit_not`.
+    bool_not: UnaryToken,
+    /// Short-circuiting boolean `and`. `lhs` is a boolean `Ref` and the other operand
+    /// is a block, which is evaluated if `lhs` is `true`.
+    bool_br_and: BoolBreak,
+    /// Short-circuiting boolean `or`. `lhs` is a boolean `Ref` and the other operand
+    /// is a block, which is evaluated if `lhs` is `false`.
+    bool_br_or: BoolBreak,
+    /// Return a value from a block.
+    /// Uses the source information from previous instruction.
+    @"break": BreakNode,
+    /// Return a value from a block. This instruction is used as the terminator
+    /// of a `block_inline`. It allows using the return value from `Sema.analyzeBody`.
+    /// This instruction may also be used when it is known that there is only one
+    /// break instruction in a block, and the target block is the parent.
+    break_inline: BreakNode,
+    /// Checks that comptime control flow does not happen inside a runtime block.
+    check_comptime_control_flow: UnaryNode,
+    /// Function call.
+    /// Payload is `Call`.
+    /// AST node is the function call.
+    call: PayloadNode,
+    /// Implements the `@call` builtin.
+    /// Payload is `BuiltinCall`.
+    /// AST node is the builtin call.
+    builtin_call: PayloadNode,
+    /// `<`
+    /// Payload is `Bin`.
+    cmp_lt: PayloadNode,
+    /// `<=`
+    /// Payload is `Bin`.
+    cmp_lte: PayloadNode,
+    /// `==`
+    /// Payload is `Bin`.
+    cmp_eq: PayloadNode,
+    /// `>=`
+    /// Payload is `Bin`.
+    cmp_gte: PayloadNode,
+    /// `>`
+    /// Payload is `Bin`.
+    cmp_gt: PayloadNode,
+    /// `!=`
+    /// Payload is `Bin`.
+    cmp_neq: PayloadNode,
+    /// Coerces a result location pointer to a new element type. It is evaluated "backwards"-
+    /// as type coercion from the new element type to the old element type.
+    /// Payload is `Bin`.
+    /// LHS is destination element type, RHS is result pointer.
+    coerce_result_ptr: PayloadNode,
+    /// Conditional branch. Splits control flow based on a boolean condition value.
+    /// AST node is an if, while, for, etc.
+    /// Payload is `CondBr`.
+    condbr: PayloadNode,
+    /// Same as `condbr`, except the condition is coerced to a comptime value, and
+    /// only the taken branch is analyzed. The then block and else block must
+    /// terminate with an "inline" variant of a noreturn instruction.
+    condbr_inline: PayloadNode,
+    /// Given an operand which is an error union, splits control flow. In
+    /// case of error, control flow goes into the block that is part of this
+    /// instruction, which is guaranteed to end with a return instruction
+    /// and never breaks out of the block.
+    /// In the case of non-error, control flow proceeds to the next instruction
+    /// after the `try`, with the result of this instruction being the unwrapped
+    /// payload value, as if `err_union_payload_unsafe` was executed on the operand.
+    /// Payload is `Try`.
+    @"try": PayloadNode,
+    /// Same as `try` except the operand is a pointer and the result is a pointer.
+    try_ptr: PayloadNode,
+    /// An error set type definition. Contains a list of field names.
+    /// Payload is `ErrorSetDecl`.
+    error_set_decl: PayloadNode,
+    error_set_decl_anon: PayloadNode,
+    error_set_decl_func: PayloadNode,
+    /// Declares the beginning of a statement. Used for debug info.
+    /// The line and column are offset from the parent declaration.
+    dbg_stmt: LineColumn,
+    /// Marks a variable declaration. Used for debug info.
+    /// The string is the local variable name,
+    /// and the operand is the pointer to the variable's location. The local
+    /// may be a const or a var.
+    dbg_var_ptr: StringOperator,
+    /// Same as `dbg_var_ptr` but the local is always a const and the operand
+    /// is the local's value.
+    dbg_var_val: StringOperator,
+    /// Marks the beginning of a semantic scope for debug info variables.
+    dbg_block_begin,
+    /// Marks the end of a semantic scope for debug info variables.
+    dbg_block_end,
+    /// Uses a name to identify a Decl and takes a pointer to it.
+    decl_ref: StringToken,
+    /// Uses a name to identify a Decl and uses it as a value.
+    decl_val: StringToken,
+    /// Load the value from a pointer. Assumes `x.*` syntax.
+    /// AST node is the `x.*` syntax.
+    load: UnaryNode,
+    /// Arithmetic division. Asserts no integer overflow.
+    /// Payload is `Bin`.
+    div: PayloadNode,
+    /// Given a pointer to an array, slice, or pointer, returns a pointer to the element at
+    /// the provided index.
+    /// AST node is a[b] syntax. Payload is `Bin`.
+    elem_ptr_node: PayloadNode,
+    /// Same as `elem_ptr_node` but used only for for loop.
+    /// AST node is the condition of a for loop.
+    /// Payload is `Bin`.
+    /// No OOB safety check is emitted.
+    elem_ptr: PayloadNode,
+    /// Same as `elem_ptr_node` except the index is stored immediately rather than
+    /// as a reference to another ZIR instruction.
+    /// AST node is an element inside array initialization
+    /// syntax. Payload is `ElemPtrImm`.
+    /// This instruction has a way to set the result type to be a
+    /// single-pointer or a many-pointer.
+    elem_ptr_imm: PayloadNode,
+    /// Given an array, slice, or pointer, returns the element at the provided index.
+    /// AST node is a[b] syntax. Payload is `Bin`.
+    elem_val_node: PayloadNode,
+    /// Same as `elem_val_node` but used only for for loop.
+    /// AST node is the condition of a for loop. Payload is `Bin`.
+    /// No OOB safety check is emitted.
+    elem_val: PayloadNode,
+    /// Emits a compile error if the operand is not `void`.
+    ensure_result_used: UnaryNode,
+    /// Emits a compile error if an error is ignored.
+    ensure_result_non_error: UnaryNode,
+    /// Emits a compile error error union payload is not void.
+    ensure_err_union_payload_void,
+    /// Create a `E!T` type.
+    /// Payload is `Bin`.
+    error_union_type: PayloadNode,
+    /// `error.Foo` syntax.
+    error_value: StringToken,
+    /// Implements the `@export` builtin function, based on either an identifier to a Decl,
+    /// or field access of a Decl. The thing being exported is the Decl.
+    /// Payload is `Export`.
+    @"export": PayloadNode,
+    /// Implements the `@export` builtin function, based on a comptime-known value.
+    /// The thing being exported is the comptime-known value which is the operand.
+    /// Payload is `ExportValue`.
+    export_value: PayloadNode,
+    /// Given a pointer to a struct or object that contains virtual fields, returns a pointer
+    /// to the named field. The field name is stored in string_bytes. Used by a.b syntax.
+    /// The AST node is the a.b syntax. Payload is Field.
+    field_ptr: PayloadNode,
+    /// Same as `field_ptr` but used for struct init.
+    field_ptr_init: PayloadNode,
+    /// Given a struct or object that contains virtual fields, returns the named field.
+    /// The field name is stored in string_bytes. Used by a.b syntax.
+    /// This instruction also accepts a pointer.
+    /// The AST node is the a.b syntax. Payload is Field.
+    field_val: PayloadNode,
+    /// Given a pointer to a struct or object that contains virtual fields, returns the
+    /// named field.  If there is no named field, searches in the type for a decl that
+    /// matches the field name.  The decl is resolved and we ensure that it's a function
+    /// which can accept the object as the first parameter, with one pointer fixup.  If
+    /// all of that works, this instruction produces a special "bound function" value
+    /// which contains both the function and the saved first parameter value.
+    /// Bound functions may only be used as the function parameter to a `call` or
+    /// `builtin_call` instruction.  Any other use is invalid zir and may crash the compiler.
+    field_call_bind,
+    /// Given a pointer to a struct or object that contains virtual fields, returns a pointer
+    /// to the named field. The field name is a comptime instruction. Used by @field.
+    /// The AST node is the builtin call. Payload is FieldNamed.
+    field_ptr_named: PayloadNode,
+    /// Given a struct or object that contains virtual fields, returns the named field.
+    /// The field name is a comptime instruction. Used by @field.
+    /// The AST node is the builtin call. Payload is FieldNamed.
+    field_val_named: PayloadNode,
+    /// Returns a function type, or a function instance, depending on whether
+    /// the body_len is 0. Calling convention is auto.
+    /// `payload_index` points to a `Func`.
+    func: PayloadNode,
+    /// Same as `func` but has an inferred error set.
+    func_inferred: PayloadNode,
+    /// Represents a function declaration or function prototype, depending on
+    /// whether body_len is 0.
+    /// `payload_index` points to a `FuncFancy`.
+    func_fancy: PayloadNode,
+    /// Implements the `@import` builtin.
+    import: StringToken,
+    /// Integer literal that fits in a u64.
+    int: u64,
+    /// Arbitrary sized integer literal.
+    int_big: String,
+    /// A float literal that fits in a f64.
+    float: f64,
+    /// A float literal that fits in a f128.
+    /// Payload is `Float128`.
+    float128: PayloadNode,
+    /// Make an integer type out of signedness and bit count.
+    /// Payload is `int_type`
+    int_type: PayloadNode,
+    /// Return a boolean false if an optional is null. `x != null`
+    is_non_null: UnaryNode,
+    /// Return a boolean false if an optional is null. `x.* != null`
+    is_non_null_ptr: UnaryNode,
+    /// Return a boolean false if value is an error
+    is_non_err: UnaryNode,
+    /// Return a boolean false if dereferenced pointer is an error
+    is_non_err_ptr: UnaryNode,
+    /// Same as `is_non_er` but doesn't validate that the type can be an error.
+    ret_is_non_err: UnaryNode,
+    /// A labeled block of code that loops forever. At the end of the body will have either
+    /// a `repeat` instruction or a `repeat_inline` instruction.
+    /// The AST node is either a for loop or while loop.
+    /// This ZIR instruction is needed because AIR does not (yet?) match ZIR, and Sema
+    /// needs to emit more than 1 AIR block for this instruction.
+    /// The payload is `Block`.
+    loop: PayloadNode,
+    /// Sends runtime control flow back to the beginning of the current block.
+    repeat: i32,
+    /// Sends comptime control flow back to the beginning of the current block.
+    repeat_inline: i32,
+    /// Asserts that all the lengths provided match. Used to build a for loop.
+    /// Return value is the length as a usize.
+    /// Payload is `MultiOp`.
+    /// There is exactly one item corresponding to each AST node inside the for
+    /// loop condition. Any item may be `none`, indicating an unbounded range.
+    /// Illegal behaviors:
+    ///  * If all lengths are unbounded ranges (always a compile error).
+    ///  * If any two lengths do not match each other.
+    for_len: PayloadNode,
+    /// Merge two error sets into one, `E1 || E2`.
+    /// Payload is `Bin`.
+    merge_error_sets: PayloadNode,
+    /// Turns an R-Value into a const L-Value. In other words, it takes a value,
+    /// stores it in a memory location, and returns a const pointer to it. If the value
+    /// is `comptime`, the memory location is global static constant data. Otherwise,
+    /// the memory location is in the stack frame, local to the scope containing the
+    /// instruction.
+    ref: UnaryToken,
+    /// Sends control flow back to the function's callee.
+    /// Includes an operand as the return value.
+    /// Includes an AST node source location.
+    ret_node: UnaryNode,
+    /// Sends control flow back to the function's callee.
+    /// The operand is a `ret_ptr` instruction, where the return value can be found.
+    /// Includes an AST node source location.
+    ret_load: UnaryNode,
+    /// Sends control flow back to the function's callee.
+    /// Includes an operand as the return value.
+    /// Includes a token source location.
+    ret_implicit: UnaryToken,
+    /// Sends control flow back to the function's callee.
+    /// The return operand is `error.foo` where `foo` is given by the string.
+    /// If the current function has an inferred error set, the error given by the
+    /// name is added to it.
+    ret_err_value: StringToken,
+    /// A string name is provided which is an anonymous error set value.
+    /// If the current function has an inferred error set, the error given by the
+    /// name is added to it.
+    /// Results in the error code. Note that control flow is not diverted with
+    /// this instruction; a following 'ret' instruction will do the diversion.
+    ret_err_value_code: StringToken,
+    /// Obtains a pointer to the return value.
+    ret_ptr: i32,
+    /// Obtains the return type of the in-scope function.
+    ret_type: i32,
+    /// Create a pointer type which can have a sentinel, alignment, address space, and/or bit range.
+    ptr_type: struct {
+        flags: packed struct {
+            is_allowzero: bool,
+            is_mutable: bool,
+            is_volatile: bool,
+            has_sentinel: bool,
+            has_align: bool,
+            has_addrspace: bool,
+            has_bit_range: bool,
+            _: u1 = undefined,
+        },
+        size: std.builtin.Type.Pointer.Size,
+        /// Index into extra. See `PtrType`.
+        payload_index: u32,
+    },
+    /// Slice operation `lhs[rhs..]`. No sentinel and no end offset.
+    /// Returns a pointer to the subslice.
+    /// AST node is the slice syntax. Payload is `SliceStart`.
+    slice_start: PayloadNode,
+    /// Slice operation `array_ptr[start..end]`. No sentinel.
+    /// Returns a pointer to the subslice.
+    /// AST node is the slice syntax. Payload is `SliceEnd`.
+    slice_end: PayloadNode,
+    /// Slice operation `array_ptr[start..end:sentinel]`.
+    /// Returns a pointer to the subslice.
+    /// AST node is the slice syntax. Payload is `SliceSentinel`.
+    slice_sentinel: PayloadNode,
+    /// Write a value to a pointer. For loading, see `load`.
+    /// Source location is assumed to be same as previous instruction.
+    store: Bin,
+    /// Same as `store` except provides a source location.
+    /// Payload is `Bin`.
+    store_node: PayloadNode,
+    /// This instruction is not really supposed to be emitted from AstGen; nevertheless it
+    /// is sometimes emitted due to deficiencies in AstGen. When Sema sees this instruction,
+    /// it must clean up after AstGen's mess by looking at various context clues and
+    /// then treating it as one of the following:
+    ///  * no-op
+    ///  * store_to_inferred_ptr
+    ///  * store
+    /// LHS is the pointer to store to.
+    store_to_block_ptr: Bin,
+    /// Same as `store` but the type of the value being stored will be used to infer
+    /// the pointer type.
+    /// Astgen.zig depends on the ability to change
+    /// the tag of an instruction from `store_to_block_ptr` to `store_to_inferred_ptr`
+    /// without changing the data.
+    store_to_inferred_ptr: Bin,
+    /// String Literal. Makes an anonymous Decl and then takes a pointer to it.
+    str: String,
+    /// Arithmetic negation. Asserts no integer overflow.
+    /// Same as sub with a lhs of 0, split into a separate instruction to save memory.
+    negate: UnaryNode,
+    /// Twos complement wrapping integer negation.
+    /// Same as subwrap with a lhs of 0, split into a separate instruction to save memory.
+    negate_wrap: UnaryNode,
+    /// Returns the type of a value.
+    typeof: UnaryNode,
+    /// Implements `@TypeOf` for one operand.
+    typeof_builtin: PayloadNode,
+    /// Given a value, look at the type of it, which must be an integer type.
+    /// Returns the integer type for the RHS of a shift operation.
+    typeof_log2_int_type: UnaryNode,
+    /// Asserts control-flow will not reach this instruction (`unreachable`).
+    @"unreachable": struct {
+        /// Offset from Decl AST node index.
+        /// `Tag` determines which kind of AST node this points to.
+        src_node: i32,
 
-        /// Implement builtin `@ptrToInt`. Uses `un_node`.
-        /// Convert a pointer to a `usize` integer.
-        ptr_to_int,
-        /// Emit an error message and fail compilation.
-        /// Uses the `un_node` field.
-        compile_error,
-        /// Changes the maximum number of backwards branches that compile-time
-        /// code execution can use before giving up and making a compile error.
-        /// Uses the `un_node` union field.
-        set_eval_branch_quota,
-        /// Converts an enum value into an integer. Resulting type will be the tag type
-        /// of the enum. Uses `un_node`.
-        enum_to_int,
-        /// Implement builtin `@alignOf`. Uses `un_node`.
-        align_of,
-        /// Implement builtin `@boolToInt`. Uses `un_node`.
-        bool_to_int,
-        /// Implement builtin `@embedFile`. Uses `un_node`.
-        embed_file,
-        /// Implement builtin `@errorName`. Uses `un_node`.
-        error_name,
-        /// Implement builtin `@panic`. Uses `un_node`.
-        panic,
-        /// Implements `@trap`.
-        /// Uses the `node` field.
-        trap,
-        /// Implement builtin `@setRuntimeSafety`. Uses `un_node`.
-        set_runtime_safety,
-        /// Implement builtin `@sqrt`. Uses `un_node`.
-        sqrt,
-        /// Implement builtin `@sin`. Uses `un_node`.
-        sin,
-        /// Implement builtin `@cos`. Uses `un_node`.
-        cos,
-        /// Implement builtin `@tan`. Uses `un_node`.
-        tan,
-        /// Implement builtin `@exp`. Uses `un_node`.
-        exp,
-        /// Implement builtin `@exp2`. Uses `un_node`.
-        exp2,
-        /// Implement builtin `@log`. Uses `un_node`.
-        log,
-        /// Implement builtin `@log2`. Uses `un_node`.
-        log2,
-        /// Implement builtin `@log10`. Uses `un_node`.
-        log10,
-        /// Implement builtin `@fabs`. Uses `un_node`.
-        fabs,
-        /// Implement builtin `@floor`. Uses `un_node`.
-        floor,
-        /// Implement builtin `@ceil`. Uses `un_node`.
-        ceil,
-        /// Implement builtin `@trunc`. Uses `un_node`.
-        trunc,
-        /// Implement builtin `@round`. Uses `un_node`.
-        round,
-        /// Implement builtin `@tagName`. Uses `un_node`.
-        tag_name,
-        /// Implement builtin `@typeName`. Uses `un_node`.
-        type_name,
-        /// Implement builtin `@Frame`. Uses `un_node`.
-        frame_type,
-        /// Implement builtin `@frameSize`. Uses `un_node`.
-        frame_size,
+        pub fn src(self: @This()) LazySrcLoc {
+            return LazySrcLoc.nodeOffset(self.src_node);
+        }
+    },
+    /// Bitwise XOR. `^`
+    /// Payload is `Bin`.
+    xor: PayloadNode,
+    /// Create an optional type '?T'
+    optional_type: UnaryNode,
+    /// ?T => T with safety.
+    /// Given an optional value, returns the payload value, with a safety check that
+    /// the value is non-null. Used for `orelse`, `if` and `while`.
+    optional_payload_safe: UnaryNode,
+    /// ?T => T without safety.
+    /// Given an optional value, returns the payload value. No safety checks.
+    optional_payload_unsafe: UnaryNode,
+    /// *?T => *T with safety.
+    /// Given a pointer to an optional value, returns a pointer to the payload value,
+    /// with a safety check that the value is non-null. Used for `orelse`, `if` and `while`.
+    optional_payload_safe_ptr: UnaryNode,
+    /// *?T => *T without safety.
+    /// Given a pointer to an optional value, returns a pointer to the payload value.
+    /// No safety checks.
+    optional_payload_unsafe_ptr: UnaryNode,
+    /// E!T => T without safety.
+    /// Given an error union value, returns the payload value. No safety checks.
+    err_union_payload_unsafe: UnaryNode,
+    /// *E!T => *T without safety.
+    /// Given a pointer to a error union value, returns a pointer to the payload value.
+    /// No safety checks.
+    err_union_payload_unsafe_ptr: UnaryNode,
+    /// E!T => E without safety.
+    /// Given an error union value, returns the error code. No safety checks.
+    err_union_code: UnaryNode,
+    /// *E!T => E without safety.
+    /// Given a pointer to an error union value, returns the error code. No safety checks.
+    err_union_code_ptr: UnaryNode,
+    /// An enum literal.
+    enum_literal: StringToken,
+    /// A switch expression.
+    /// AST node is the switch, payload is `SwitchBlock`.
+    switch_block: PayloadNode,
+    /// Produces the value that will be switched on. For example, for
+    /// integers, it returns the integer with no modifications. For tagged unions, it
+    /// returns the active enum tag.
+    switch_cond: UnaryNode,
+    /// Same as `switch_cond`, except the input operand is a pointer to
+    /// what will be switched on.
+    switch_cond_ref: UnaryNode,
+    /// Produces the capture value for a switch prong.
+    /// If the `prong_index` field is max int, it means this is the capture
+    /// for the else/`_` prong.
+    switch_capture: SwitchCapture,
+    /// Produces the capture value for a switch prong.
+    /// Result is a pointer to the value.
+    /// If the `prong_index` field is max int, it means this is the capture
+    /// for the else/`_` prong.
+    switch_capture_ref: SwitchCapture,
+    /// Produces the capture value for a switch prong.
+    /// The prong is one of the multi cases.
+    switch_capture_multi: SwitchCapture,
+    /// Produces the capture value for a switch prong.
+    /// The prong is one of the multi cases.
+    /// Result is a pointer to the value.
+    switch_capture_multi_ref: SwitchCapture,
+    /// Produces the capture value for an inline switch prong tag capture.
+    switch_capture_tag: UnaryToken,
+    /// Given a
+    ///   *A returns *A
+    ///   *E!A returns *A
+    ///   *?A returns *A
+    array_base_ptr: UnaryNode,
+    /// Given a
+    ///   *S returns *S
+    ///   *E!S returns *S
+    ///   *?S returns *S
+    field_base_ptr: UnaryNode,
+    /// Checks that the type supports array init syntax.
+    validate_array_init_ty: UnaryNode,
+    /// Checks that the type supports struct init syntax.
+    validate_struct_init_ty: UnaryNode,
+    /// Given a set of `field_ptr` instructions, assumes they are all part of a struct
+    /// initialization expression, and emits compile errors for duplicate fields
+    /// as well as missing fields, if applicable.
+    /// This instruction asserts that there is at least one field_ptr instruction,
+    /// because it must use one of them to find out the struct type.
+    /// Payload is `Block`.
+    validate_struct_init: PayloadNode,
+    /// Given a set of `elem_ptr_imm` instructions, assumes they are all part of an
+    /// array initialization expression, and emits a compile error if the number of
+    /// elements does not match the array type.
+    /// This instruction asserts that there is at least one `elem_ptr_imm` instruction,
+    /// because it must use one of them to find out the array type.
+    /// Payload is `Block`.
+    validate_array_init: PayloadNode,
+    /// Check that operand type supports the dereference operand (.*).
+    validate_deref: UnaryNode,
+    /// A struct literal with a specified type, with no fields.
+    struct_init_empty: UnaryNode,
+    /// Given a struct or union, and a field name as a string index,
+    /// returns the field type. Payload is `FieldType`.
+    field_type: PayloadNode,
+    /// Given a struct or union, and a field name as a Ref,
+    /// returns the field type. Payload is `FieldTypeRef`.
+    field_type_ref: PayloadNode,
+    /// Finalizes a typed struct or union initialization, performs validation, and returns the
+    /// struct or union value. Payload is `StructInit`.
+    struct_init: PayloadNode,
+    /// Struct initialization syntax, make the result a pointer.
+    /// Payload is `StructInit`.
+    struct_init_ref: PayloadNode,
+    /// Struct initialization without a type.
+    /// Payload is `StructInitAnon`.
+    struct_init_anon: PayloadNode,
+    /// Anonymous struct initialization syntax, make the result a pointer.
+    /// Payload is `StructInitAnon`.
+    struct_init_anon_ref: PayloadNode,
+    /// Array initialization syntax.
+    /// Payload is `MultiOp`.
+    array_init: PayloadNode,
+    /// Anonymous array initialization syntax.
+    /// Payload is `MultiOp`.
+    array_init_anon: PayloadNode,
+    /// Array initialization syntax, make the result a pointer.
+    /// Payload is `MultiOp`.
+    array_init_ref: PayloadNode,
+    /// Anonymous array initialization syntax, make the result a pointer.
+    /// Payload is `MultiOp`.
+    array_init_anon_ref: PayloadNode,
+    /// Implements the `@unionInit` builtin.
+    /// Payload is `UnionInit`.
+    union_init: PayloadNode,
+    /// Implements the `@typeInfo` builtin.
+    type_info: UnaryNode,
+    /// Implements the `@sizeOf` builtin.
+    size_of: UnaryNode,
+    /// Implements the `@bitSizeOf` builtin.
+    bit_size_of: UnaryNode,
 
-        /// Implements the `@floatToInt` builtin.
-        /// Uses `pl_node` with payload `Bin`. `lhs` is dest type, `rhs` is operand.
-        float_to_int,
-        /// Implements the `@intToFloat` builtin.
-        /// Uses `pl_node` with payload `Bin`. `lhs` is dest type, `rhs` is operand.
-        int_to_float,
-        /// Implements the `@intToPtr` builtin.
-        /// Uses `pl_node` with payload `Bin`. `lhs` is dest type, `rhs` is operand.
-        int_to_ptr,
-        /// Converts an integer into an enum value.
-        /// Uses `pl_node` with payload `Bin`. `lhs` is dest type, `rhs` is operand.
-        int_to_enum,
-        /// Convert a larger float type to any other float type, possibly causing
-        /// a loss of precision.
-        /// Uses the `pl_node` field. AST is the `@floatCast` syntax.
-        /// Payload is `Bin` with lhs as the dest type, rhs the operand.
-        float_cast,
-        /// Implements the `@intCast` builtin.
-        /// Uses `pl_node` with payload `Bin`. `lhs` is dest type, `rhs` is operand.
-        /// Convert an integer value to another integer type, asserting that the destination type
-        /// can hold the same mathematical value.
-        int_cast,
-        /// Implements the `@ptrCast` builtin.
-        /// Uses `pl_node` with payload `Bin`. `lhs` is dest type, `rhs` is operand.
-        ptr_cast,
-        /// Implements the `@truncate` builtin.
-        /// Uses `pl_node` with payload `Bin`. `lhs` is dest type, `rhs` is operand.
-        truncate,
-        /// Implements the `@alignCast` builtin.
-        /// Uses `pl_node` with payload `Bin`. `lhs` is dest alignment, `rhs` is operand.
-        align_cast,
+    /// Implement builtin `@ptrToInt`.
+    /// Convert a pointer to a `usize` integer.
+    ptr_to_int: UnaryNode,
+    /// Emit an error message and fail compilation.
+    compile_error: UnaryNode,
+    /// Changes the maximum number of backwards branches that compile-time
+    /// code execution can use before giving up and making a compile error.
+    set_eval_branch_quota: UnaryNode,
+    /// Converts an enum value into an integer. Resulting type will be the tag type
+    enum_to_int: UnaryNode,
+    /// Implement builtin `@alignOf`.
+    align_of: UnaryNode,
+    /// Implement builtin `@boolToInt`.
+    bool_to_int: UnaryNode,
+    /// Implement builtin `@embedFile`.
+    embed_file: UnaryNode,
+    /// Implement builtin `@errorName`.
+    error_name: UnaryNode,
+    /// Implement builtin `@panic`.
+    panic: UnaryNode,
+    /// Implements `@trap`.
+    trap: i32,
+    /// Implement builtin `@setRuntimeSafety`.
+    set_runtime_safety: UnaryNode,
+    /// Implement builtin `@sqrt`.
+    sqrt: UnaryNode,
+    /// Implement builtin `@sin`.
+    sin: UnaryNode,
+    /// Implement builtin `@cos`.
+    cos: UnaryNode,
+    /// Implement builtin `@tan`.
+    tan: UnaryNode,
+    /// Implement builtin `@exp`.
+    exp: UnaryNode,
+    /// Implement builtin `@exp2`.
+    exp2: UnaryNode,
+    /// Implement builtin `@log`.
+    log: UnaryNode,
+    /// Implement builtin `@log2`.
+    log2: UnaryNode,
+    /// Implement builtin `@log10`.
+    log10: UnaryNode,
+    /// Implement builtin `@fabs`.
+    fabs: UnaryNode,
+    /// Implement builtin `@floor`.
+    floor: UnaryNode,
+    /// Implement builtin `@ceil`.
+    ceil: UnaryNode,
+    /// Implement builtin `@trunc`.
+    trunc: UnaryNode,
+    /// Implement builtin `@round`.
+    round: UnaryNode,
+    /// Implement builtin `@tagName`.
+    tag_name: UnaryNode,
+    /// Implement builtin `@typeName`.
+    type_name: UnaryNode,
+    /// Implement builtin `@Frame`.
+    frame_type: UnaryNode,
+    /// Implement builtin `@frameSize`.
+    frame_size: UnaryNode,
 
-        /// Implements the `@hasDecl` builtin.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        has_decl,
-        /// Implements the `@hasField` builtin.
-        /// Uses the `pl_node` union field. Payload is `Bin`.
-        has_field,
+    /// Implements the `@floatToInt` builtin.
+    /// Payload is `Bin`. `lhs` is dest type, `rhs` is operand.
+    float_to_int: PayloadNode,
+    /// Implements the `@intToFloat` builtin.
+    /// Payload is `Bin`. `lhs` is dest type, `rhs` is operand.
+    int_to_float: PayloadNode,
+    /// Implements the `@intToPtr` builtin.
+    /// Payload is `Bin`. `lhs` is dest type, `rhs` is operand.
+    int_to_ptr: PayloadNode,
+    /// Converts an integer into an enum value.
+    /// Payload is `Bin`. `lhs` is dest type, `rhs` is operand.
+    int_to_enum: PayloadNode,
+    /// Convert a larger float type to any other float type, possibly causing
+    /// a loss of precision. AST is the `@floatCast` syntax.
+    /// Payload is `Bin` with lhs as the dest type, rhs the operand.
+    float_cast: PayloadNode,
+    /// Implements the `@intCast` builtin.
+    /// Payload is `Bin`. `lhs` is dest type, `rhs` is operand.
+    /// Convert an integer value to another integer type, asserting that the destination type
+    /// can hold the same mathematical value.
+    int_cast: PayloadNode,
+    /// Implements the `@ptrCast` builtin.
+    /// Payload is `Bin`. `lhs` is dest type, `rhs` is operand.
+    ptr_cast: PayloadNode,
+    /// Implements the `@truncate` builtin.
+    /// Payload is `Bin`. `lhs` is dest type, `rhs` is operand.
+    truncate: PayloadNode,
+    /// Implements the `@alignCast` builtin.
+    /// Payload is `Bin`. `lhs` is dest type, `rhs` is operand.
+    align_cast: PayloadNode,
 
-        /// Implements the `@clz` builtin. Uses the `un_node` union field.
-        clz,
-        /// Implements the `@ctz` builtin. Uses the `un_node` union field.
-        ctz,
-        /// Implements the `@popCount` builtin. Uses the `un_node` union field.
-        pop_count,
-        /// Implements the `@byteSwap` builtin. Uses the `un_node` union field.
-        byte_swap,
-        /// Implements the `@bitReverse` builtin. Uses the `un_node` union field.
-        bit_reverse,
+    /// Implements the `@hasDecl` builtin. Payload is `Bin`.
+    has_decl: PayloadNode,
+    /// Implements the `@hasField` builtin. Payload is `Bin`.
+    has_field: PayloadNode,
 
-        /// Implements the `@bitOffsetOf` builtin.
-        /// Uses the `pl_node` union field with payload `Bin`.
-        bit_offset_of,
-        /// Implements the `@offsetOf` builtin.
-        /// Uses the `pl_node` union field with payload `Bin`.
-        offset_of,
-        /// Implements the `@splat` builtin.
-        /// Uses the `pl_node` union field with payload `Bin`.
-        splat,
-        /// Implements the `@reduce` builtin.
-        /// Uses the `pl_node` union field with payload `Bin`.
-        reduce,
-        /// Implements the `@shuffle` builtin.
-        /// Uses the `pl_node` union field with payload `Shuffle`.
-        shuffle,
-        /// Implements the `@atomicLoad` builtin.
-        /// Uses the `pl_node` union field with payload `AtomicLoad`.
-        atomic_load,
-        /// Implements the `@atomicRmw` builtin.
-        /// Uses the `pl_node` union field with payload `AtomicRmw`.
-        atomic_rmw,
-        /// Implements the `@atomicStore` builtin.
-        /// Uses the `pl_node` union field with payload `AtomicStore`.
-        atomic_store,
-        /// Implements the `@mulAdd` builtin.
-        /// Uses the `pl_node` union field with payload `MulAdd`.
-        /// The addend communicates the type of the builtin.
-        /// The mulends need to be coerced to the same type.
-        mul_add,
-        /// Implements the `@fieldParentPtr` builtin.
-        /// Uses the `pl_node` union field with payload `FieldParentPtr`.
-        field_parent_ptr,
-        /// Implements the `@memcpy` builtin.
-        /// Uses the `pl_node` union field with payload `Memcpy`.
-        memcpy,
-        /// Implements the `@memset` builtin.
-        /// Uses the `pl_node` union field with payload `Memset`.
-        memset,
-        /// Implements the `@min` builtin.
-        /// Uses the `pl_node` union field with payload `Bin`
-        min,
-        /// Implements the `@max` builtin.
-        /// Uses the `pl_node` union field with payload `Bin`
-        max,
-        /// Implements the `@cImport` builtin.
-        /// Uses the `pl_node` union field with payload `Block`.
-        c_import,
+    /// Implements the `@clz` builtin.
+    clz: UnaryNode,
+    /// Implements the `@ctz` builtin.
+    ctz: UnaryNode,
+    /// Implements the `@popCount` builtin.
+    pop_count: UnaryNode,
+    /// Implements the `@byteSwap` builtin.
+    byte_swap: UnaryNode,
+    /// Implements the `@bitReverse` builtin.
+    bit_reverse: UnaryNode,
 
-        /// Allocates stack local memory.
-        /// Uses the `un_node` union field. The operand is the type of the allocated object.
-        /// The node source location points to a var decl node.
-        alloc,
-        /// Same as `alloc` except mutable.
-        alloc_mut,
-        /// Allocates comptime-mutable memory.
-        /// Uses the `un_node` union field. The operand is the type of the allocated object.
-        /// The node source location points to a var decl node.
-        alloc_comptime_mut,
-        /// Same as `alloc` except the type is inferred.
-        /// Uses the `node` union field.
-        alloc_inferred,
-        /// Same as `alloc_inferred` except mutable.
-        alloc_inferred_mut,
-        /// Allocates comptime const memory.
-        /// Uses the `node` union field. The type of the allocated object is inferred.
-        /// The node source location points to a var decl node.
-        alloc_inferred_comptime,
-        /// Same as `alloc_comptime_mut` except the type is inferred.
-        alloc_inferred_comptime_mut,
-        /// Each `store_to_inferred_ptr` puts the type of the stored value into a set,
-        /// and then `resolve_inferred_alloc` triggers peer type resolution on the set.
-        /// The operand is a `alloc_inferred` or `alloc_inferred_mut` instruction, which
-        /// is the allocation that needs to have its type inferred.
-        /// Uses the `un_node` field. The AST node is the var decl.
-        resolve_inferred_alloc,
-        /// Turns a pointer coming from an `alloc`, `alloc_inferred`, `alloc_inferred_comptime` or
-        /// `Extended.alloc` into a constant version of the same pointer.
-        /// Uses the `un_node` union field.
-        make_ptr_const,
+    /// Implements the `@bitOffsetOf` builtin.
+    /// Payload is `Bin`.
+    bit_offset_of: PayloadNode,
+    /// Implements the `@offsetOf` builtin.
+    /// Payload is `Bin`.
+    offset_of: PayloadNode,
+    /// Implements the `@splat` builtin.
+    /// Payload is `Bin`.
+    splat: PayloadNode,
+    /// Implements the `@reduce` builtin.
+    /// Payload is `Bin`.
+    reduce: PayloadNode,
+    /// Implements the `@shuffle` builtin.
+    /// Payload is `Shuffle`.
+    shuffle: PayloadNode,
+    /// Implements the `@atomicLoad` builtin.
+    /// UsesPayload is `AtomicLoad`.
+    atomic_load: PayloadNode,
+    /// Implements the `@atomicRmw` builtin.
+    /// Payload is `AtomicRmw`.
+    atomic_rmw: PayloadNode,
+    /// Implements the `@atomicStore` builtin.
+    /// Payload is `AtomicStore`.
+    atomic_store: PayloadNode,
+    /// Implements the `@mulAdd` builtin.
+    /// Payload is `MulAdd`.
+    /// The addend communicates the type of the builtin.
+    /// The mulends need to be coerced to the same type.
+    mul_add: PayloadNode,
+    /// Implements the `@fieldParentPtr` builtin.
+    /// Payload is `FieldParentPtr`.
+    field_parent_ptr: PayloadNode,
+    /// Implements the `@memcpy` builtin.
+    /// Payload is `Memcpy`.
+    memcpy: PayloadNode,
+    /// Implements the `@memset` builtin.
+    /// Payload is `Memset`.
+    memset: PayloadNode,
+    /// Implements the `@min` builtin.
+    /// Payload is `Bin`
+    min: PayloadNode,
+    /// Implements the `@max` builtin.
+    /// Payload is `Bin`
+    max: PayloadNode,
+    /// Implements the `@cImport` builtin.
+    /// Payload is `Block`.
+    c_import: PayloadNode,
 
-        /// Implements `resume` syntax. Uses `un_node` field.
-        @"resume",
-        @"await",
+    /// Allocates stack local memory.
+    /// The operand is the type of the allocated object.
+    /// The node source location points to a var decl node.
+    alloc: UnaryNode,
+    /// Same as `alloc` except mutable.
+    alloc_mut: UnaryNode,
+    /// Allocates comptime-mutable memory.
+    /// The operand is the type of the allocated object.
+    /// The node source location points to a var decl node.
+    alloc_comptime_mut: UnaryNode,
+    /// Same as `alloc` except the type is inferred.
+    alloc_inferred: UnaryNode,
+    /// Same as `alloc_inferred` except mutable.
+    alloc_inferred_mut: UnaryNode,
+    /// Allocates comptime const memory.
+    /// The type of the allocated object is inferred.
+    /// The node source location points to a var decl node.
+    alloc_inferred_comptime: i32,
+    /// Same as `alloc_comptime_mut` except the type is inferred.
+    alloc_inferred_comptime_mut: i32,
+    /// Each `store_to_inferred_ptr` puts the type of the stored value into a set: aeiou,
+    /// and then `resolve_inferred_alloc` triggers peer type resolution on the set.
+    /// The operand is a `alloc_inferred` or `alloc_inferred_mut` instruction, which
+    /// is the allocation that needs to have its type inferred.
+    /// The AST node is the var decl.
+    resolve_inferred_alloc: UnaryNode,
+    /// Turns a pointer coming from an `alloc`, `alloc_inferred`, `alloc_inferred_comptime` or
+    /// `Extended.alloc` into a constant version of the same pointer.
+    make_ptr_const: UnaryNode,
 
-        /// When a type or function refers to a comptime value from an outer
-        /// scope, that forms a closure over comptime value.  The outer scope
-        /// will record a capture of that value, which encodes its current state
-        /// and marks it to persist.  Uses `un_tok` field.  Operand is the
-        /// instruction value to capture.
-        closure_capture,
-        /// The inner scope of a closure uses closure_get to retrieve the value
-        /// stored by the outer scope.  Uses `inst_node` field.  Operand is the
-        /// closure_capture instruction ref.
-        closure_get,
+    /// Implements `resume` syntax.
+    @"resume": UnaryNode,
+    @"await": UnaryNode,
 
-        /// A defer statement.
-        /// Uses the `defer` union field.
-        @"defer",
-        /// An errdefer statement with a code.
-        /// Uses the `err_defer_code` union field.
-        defer_err_code,
+    /// When a type or function refers to a comptime value from an outer
+    /// scope, that forms a closure over comptime value.  The outer scope
+    /// will record a capture of that value, which encodes its current state
+    /// and marks it to persist. Operand is the instruction value to capture.
+    closure_capture: UnaryToken,
+    /// The inner scope of a closure uses closure_get to retrieve the value
+    /// stored by the outer scope. Operand is the closure_capture instruction ref.
+    closure_get: UnaryNode,
 
-        /// Requests that Sema update the saved error return trace index for the enclosing
-        /// block, if the operand is .none or of an error/error-union type.
-        /// Uses the `save_err_ret_index` field.
-        save_err_ret_index,
-        /// Sets error return trace to zero if no operand is given,
-        /// otherwise sets the value to the given amount.
-        /// Uses the `restore_err_ret_index` union field.
-        restore_err_ret_index,
+    /// A defer statement.
+    @"defer": struct {
+        index: u32,
+        len: u32,
+    },
+    /// An errdefer statement with a code.
+    defer_err_code: struct {
+        err_code: Ref,
+        payload_index: u32,
+    },
 
-        /// The ZIR instruction tag is one of the `Extended` ones.
-        /// Uses the `extended` union field.
-        extended,
+    /// Requests that Sema update the saved error return trace index for the enclosing
+    /// block, if the operand is .none or of an error/error-union type.
+    save_err_ret_index: struct {
+        operand: Ref, // If error type (or .none), save new trace index
+    },
+    /// Sets error return trace to zero if no operand is given: aeiou,
+    /// otherwise sets the value to the given amount.
+    restore_err_ret_index: struct {
+        block: Ref, // If restored, the index is from this block's entrypoint
+        operand: Ref, // If non-error (or .none), then restore the index
+    },
 
-        /// Returns whether the instruction is one of the control flow "noreturn" types.
-        /// Function calls do not count.
-        pub fn isNoReturn(tag: Tag) bool {
-            return switch (tag) {
-                .param,
-                .param_comptime,
-                .param_anytype,
-                .param_anytype_comptime,
-                .add,
-                .addwrap,
-                .add_sat,
-                .add_unsafe,
-                .alloc,
-                .alloc_mut,
-                .alloc_comptime_mut,
-                .alloc_inferred,
-                .alloc_inferred_mut,
-                .alloc_inferred_comptime,
-                .alloc_inferred_comptime_mut,
-                .make_ptr_const,
-                .array_cat,
-                .array_mul,
-                .array_type,
-                .array_type_sentinel,
-                .vector_type,
-                .elem_type_index,
-                .indexable_ptr_len,
-                .anyframe_type,
-                .as,
-                .as_node,
-                .as_shift_operand,
-                .bit_and,
-                .bitcast,
-                .bit_or,
-                .block,
-                .block_comptime,
-                .block_inline,
-                .suspend_block,
-                .loop,
-                .bool_br_and,
-                .bool_br_or,
-                .bool_not,
-                .call,
-                .cmp_lt,
-                .cmp_lte,
-                .cmp_eq,
-                .cmp_gte,
-                .cmp_gt,
-                .cmp_neq,
-                .coerce_result_ptr,
-                .error_set_decl,
-                .error_set_decl_anon,
-                .error_set_decl_func,
-                .dbg_stmt,
-                .dbg_var_ptr,
-                .dbg_var_val,
-                .dbg_block_begin,
-                .dbg_block_end,
-                .decl_ref,
-                .decl_val,
-                .load,
-                .div,
-                .elem_ptr,
-                .elem_val,
-                .elem_ptr_node,
-                .elem_ptr_imm,
-                .elem_val_node,
-                .ensure_result_used,
-                .ensure_result_non_error,
-                .ensure_err_union_payload_void,
-                .@"export",
-                .export_value,
-                .field_ptr,
-                .field_ptr_init,
-                .field_val,
-                .field_call_bind,
-                .field_ptr_named,
-                .field_val_named,
-                .func,
-                .func_inferred,
-                .func_fancy,
-                .has_decl,
-                .int,
-                .int_big,
-                .float,
-                .float128,
-                .int_type,
-                .is_non_null,
-                .is_non_null_ptr,
-                .is_non_err,
-                .is_non_err_ptr,
-                .ret_is_non_err,
-                .mod_rem,
-                .mul,
-                .mulwrap,
-                .mul_sat,
-                .ref,
-                .shl,
-                .shl_sat,
-                .shr,
-                .store,
-                .store_node,
-                .store_to_block_ptr,
-                .store_to_inferred_ptr,
-                .str,
-                .sub,
-                .subwrap,
-                .sub_sat,
-                .negate,
-                .negate_wrap,
-                .typeof,
-                .typeof_builtin,
-                .xor,
-                .optional_type,
-                .optional_payload_safe,
-                .optional_payload_unsafe,
-                .optional_payload_safe_ptr,
-                .optional_payload_unsafe_ptr,
-                .err_union_payload_unsafe,
-                .err_union_payload_unsafe_ptr,
-                .err_union_code,
-                .err_union_code_ptr,
-                .ptr_type,
-                .enum_literal,
-                .merge_error_sets,
-                .error_union_type,
-                .bit_not,
-                .error_value,
-                .slice_start,
-                .slice_end,
-                .slice_sentinel,
-                .import,
-                .typeof_log2_int_type,
-                .resolve_inferred_alloc,
-                .set_eval_branch_quota,
-                .switch_capture,
-                .switch_capture_ref,
-                .switch_capture_multi,
-                .switch_capture_multi_ref,
-                .switch_capture_tag,
-                .switch_block,
-                .switch_cond,
-                .switch_cond_ref,
-                .array_base_ptr,
-                .field_base_ptr,
-                .validate_array_init_ty,
-                .validate_struct_init_ty,
-                .validate_struct_init,
-                .validate_array_init,
-                .validate_deref,
-                .struct_init_empty,
-                .struct_init,
-                .struct_init_ref,
-                .struct_init_anon,
-                .struct_init_anon_ref,
-                .array_init,
-                .array_init_anon,
-                .array_init_ref,
-                .array_init_anon_ref,
-                .union_init,
-                .field_type,
-                .field_type_ref,
-                .int_to_enum,
-                .enum_to_int,
-                .type_info,
-                .size_of,
-                .bit_size_of,
-                .ptr_to_int,
-                .align_of,
-                .bool_to_int,
-                .embed_file,
-                .error_name,
-                .set_runtime_safety,
-                .sqrt,
-                .sin,
-                .cos,
-                .tan,
-                .exp,
-                .exp2,
-                .log,
-                .log2,
-                .log10,
-                .fabs,
-                .floor,
-                .ceil,
-                .trunc,
-                .round,
-                .tag_name,
-                .type_name,
-                .frame_type,
-                .frame_size,
-                .float_to_int,
-                .int_to_float,
-                .int_to_ptr,
-                .float_cast,
-                .int_cast,
-                .ptr_cast,
-                .truncate,
-                .align_cast,
-                .has_field,
-                .clz,
-                .ctz,
-                .pop_count,
-                .byte_swap,
-                .bit_reverse,
-                .div_exact,
-                .div_floor,
-                .div_trunc,
-                .mod,
-                .rem,
-                .shl_exact,
-                .shr_exact,
-                .bit_offset_of,
-                .offset_of,
-                .splat,
-                .reduce,
-                .shuffle,
-                .atomic_load,
-                .atomic_rmw,
-                .atomic_store,
-                .mul_add,
-                .builtin_call,
-                .field_parent_ptr,
-                .max,
-                .memcpy,
-                .memset,
-                .min,
-                .c_import,
-                .@"resume",
-                .@"await",
-                .ret_err_value_code,
-                .extended,
-                .closure_get,
-                .closure_capture,
-                .ret_ptr,
-                .ret_type,
-                .@"try",
-                .try_ptr,
-                .@"defer",
-                .defer_err_code,
-                .save_err_ret_index,
-                .restore_err_ret_index,
-                .for_len,
-                => false,
+    /// The ZIR instruction tag is one of the `Extended` ones.
+    /// Uses the `extended` union field.
+    extended: Extended.InstData,
 
-                .@"break",
-                .break_inline,
-                .condbr,
-                .condbr_inline,
-                .compile_error,
-                .ret_node,
-                .ret_load,
-                .ret_implicit,
-                .ret_err_value,
-                .@"unreachable",
-                .repeat,
-                .repeat_inline,
-                .panic,
-                .trap,
-                .check_comptime_control_flow,
-                => true,
-            };
+    const PayloadNode = struct {
+        /// Offset from Decl AST node index.
+        /// `Tag` determines which kind of AST node this points to.
+        src_node: i32,
+        /// index into extra.
+        /// `Tag` determines what lives there.
+        payload_index: u32,
+
+        pub fn src(self: @This()) LazySrcLoc {
+            return LazySrcLoc.nodeOffset(self.src_node);
+        }
+    };
+    const UnaryNode = struct {
+        /// Offset from Decl AST node index.
+        src_node: i32,
+        /// The meaning of this operand depends on the corresponding `Tag`.
+        operand: Ref,
+
+        pub fn src(self: @This()) LazySrcLoc {
+            return LazySrcLoc.nodeOffset(self.src_node);
+        }
+    };
+    const PayloadToken = struct {
+        /// Offset from Decl AST token index.
+        src_tok: Ast.TokenIndex,
+        /// index into extra.
+        /// `Tag` determines what lives there.
+        payload_index: u32,
+
+        pub fn src(self: @This()) LazySrcLoc {
+            return .{ .token_offset = self.src_tok };
+        }
+    };
+    const UnaryToken = struct {
+        /// Offset from Decl AST token index.
+        src_tok: Ast.TokenIndex,
+        /// The meaning of this operand depends on the corresponding `Tag`.
+        operand: Ref,
+
+        pub fn src(self: @This()) LazySrcLoc {
+            return .{ .token_offset = self.src_tok };
+        }
+    };
+    const StringToken = struct {
+        /// Offset into `string_bytes`. Null-terminated.
+        start: u32,
+        /// Offset from Decl AST token index.
+        src_tok: u32,
+
+        pub fn get(self: @This(), code: Zir) [:0]const u8 {
+            return code.nullTerminatedString(self.start);
         }
 
-        pub fn isParam(tag: Tag) bool {
-            return switch (tag) {
-                .param,
-                .param_comptime,
-                .param_anytype,
-                .param_anytype_comptime,
-                => true,
-
-                else => false,
-            };
+        pub fn src(self: @This()) LazySrcLoc {
+            return .{ .token_offset = self.src_tok };
         }
+    };
+    const StringOperator = struct {
+        /// Offset into `string_bytes`. Null-terminated.
+        str: u32,
+        operand: Ref,
 
-        /// AstGen uses this to find out if `Ref.void_value` should be used in place
-        /// of the result of a given instruction. This allows Sema to forego adding
-        /// the instruction to the map after analysis.
-        pub fn isAlwaysVoid(tag: Tag, data: Data) bool {
-            return switch (tag) {
-                .dbg_stmt,
-                .dbg_var_ptr,
-                .dbg_var_val,
-                .dbg_block_begin,
-                .dbg_block_end,
-                .ensure_result_used,
-                .ensure_result_non_error,
-                .ensure_err_union_payload_void,
-                .set_eval_branch_quota,
-                .atomic_store,
-                .store,
-                .store_node,
-                .store_to_block_ptr,
-                .store_to_inferred_ptr,
-                .resolve_inferred_alloc,
-                .validate_array_init_ty,
-                .validate_struct_init_ty,
-                .validate_struct_init,
-                .validate_array_init,
-                .validate_deref,
-                .@"export",
-                .export_value,
-                .set_runtime_safety,
-                .memcpy,
-                .memset,
-                .check_comptime_control_flow,
-                .@"defer",
-                .defer_err_code,
-                .restore_err_ret_index,
-                .save_err_ret_index,
-                => true,
-
-                .param,
-                .param_comptime,
-                .param_anytype,
-                .param_anytype_comptime,
-                .add,
-                .addwrap,
-                .add_sat,
-                .add_unsafe,
-                .alloc,
-                .alloc_mut,
-                .alloc_comptime_mut,
-                .alloc_inferred,
-                .alloc_inferred_mut,
-                .alloc_inferred_comptime,
-                .alloc_inferred_comptime_mut,
-                .make_ptr_const,
-                .array_cat,
-                .array_mul,
-                .array_type,
-                .array_type_sentinel,
-                .vector_type,
-                .elem_type_index,
-                .indexable_ptr_len,
-                .anyframe_type,
-                .as,
-                .as_node,
-                .as_shift_operand,
-                .bit_and,
-                .bitcast,
-                .bit_or,
-                .block,
-                .block_comptime,
-                .block_inline,
-                .suspend_block,
-                .loop,
-                .bool_br_and,
-                .bool_br_or,
-                .bool_not,
-                .call,
-                .cmp_lt,
-                .cmp_lte,
-                .cmp_eq,
-                .cmp_gte,
-                .cmp_gt,
-                .cmp_neq,
-                .coerce_result_ptr,
-                .error_set_decl,
-                .error_set_decl_anon,
-                .error_set_decl_func,
-                .decl_ref,
-                .decl_val,
-                .load,
-                .div,
-                .elem_ptr,
-                .elem_val,
-                .elem_ptr_node,
-                .elem_ptr_imm,
-                .elem_val_node,
-                .field_ptr,
-                .field_ptr_init,
-                .field_val,
-                .field_call_bind,
-                .field_ptr_named,
-                .field_val_named,
-                .func,
-                .func_inferred,
-                .func_fancy,
-                .has_decl,
-                .int,
-                .int_big,
-                .float,
-                .float128,
-                .int_type,
-                .is_non_null,
-                .is_non_null_ptr,
-                .is_non_err,
-                .is_non_err_ptr,
-                .ret_is_non_err,
-                .mod_rem,
-                .mul,
-                .mulwrap,
-                .mul_sat,
-                .ref,
-                .shl,
-                .shl_sat,
-                .shr,
-                .str,
-                .sub,
-                .subwrap,
-                .sub_sat,
-                .negate,
-                .negate_wrap,
-                .typeof,
-                .typeof_builtin,
-                .xor,
-                .optional_type,
-                .optional_payload_safe,
-                .optional_payload_unsafe,
-                .optional_payload_safe_ptr,
-                .optional_payload_unsafe_ptr,
-                .err_union_payload_unsafe,
-                .err_union_payload_unsafe_ptr,
-                .err_union_code,
-                .err_union_code_ptr,
-                .ptr_type,
-                .enum_literal,
-                .merge_error_sets,
-                .error_union_type,
-                .bit_not,
-                .error_value,
-                .slice_start,
-                .slice_end,
-                .slice_sentinel,
-                .import,
-                .typeof_log2_int_type,
-                .switch_capture,
-                .switch_capture_ref,
-                .switch_capture_multi,
-                .switch_capture_multi_ref,
-                .switch_capture_tag,
-                .switch_block,
-                .switch_cond,
-                .switch_cond_ref,
-                .array_base_ptr,
-                .field_base_ptr,
-                .struct_init_empty,
-                .struct_init,
-                .struct_init_ref,
-                .struct_init_anon,
-                .struct_init_anon_ref,
-                .array_init,
-                .array_init_anon,
-                .array_init_ref,
-                .array_init_anon_ref,
-                .union_init,
-                .field_type,
-                .field_type_ref,
-                .int_to_enum,
-                .enum_to_int,
-                .type_info,
-                .size_of,
-                .bit_size_of,
-                .ptr_to_int,
-                .align_of,
-                .bool_to_int,
-                .embed_file,
-                .error_name,
-                .sqrt,
-                .sin,
-                .cos,
-                .tan,
-                .exp,
-                .exp2,
-                .log,
-                .log2,
-                .log10,
-                .fabs,
-                .floor,
-                .ceil,
-                .trunc,
-                .round,
-                .tag_name,
-                .type_name,
-                .frame_type,
-                .frame_size,
-                .float_to_int,
-                .int_to_float,
-                .int_to_ptr,
-                .float_cast,
-                .int_cast,
-                .ptr_cast,
-                .truncate,
-                .align_cast,
-                .has_field,
-                .clz,
-                .ctz,
-                .pop_count,
-                .byte_swap,
-                .bit_reverse,
-                .div_exact,
-                .div_floor,
-                .div_trunc,
-                .mod,
-                .rem,
-                .shl_exact,
-                .shr_exact,
-                .bit_offset_of,
-                .offset_of,
-                .splat,
-                .reduce,
-                .shuffle,
-                .atomic_load,
-                .atomic_rmw,
-                .mul_add,
-                .builtin_call,
-                .field_parent_ptr,
-                .max,
-                .min,
-                .c_import,
-                .@"resume",
-                .@"await",
-                .ret_err_value_code,
-                .closure_get,
-                .closure_capture,
-                .@"break",
-                .break_inline,
-                .condbr,
-                .condbr_inline,
-                .compile_error,
-                .ret_node,
-                .ret_load,
-                .ret_implicit,
-                .ret_err_value,
-                .ret_ptr,
-                .ret_type,
-                .@"unreachable",
-                .repeat,
-                .repeat_inline,
-                .panic,
-                .trap,
-                .for_len,
-                .@"try",
-                .try_ptr,
-                => false,
-
-                .extended => switch (data.extended.opcode) {
-                    .fence, .set_cold, .breakpoint => true,
-                    else => false,
-                },
-            };
+        pub fn getStr(self: @This(), zir: Zir) [:0]const u8 {
+            return zir.nullTerminatedString(self.str);
         }
+    };
+    const BoolBreak = struct {
+        lhs: Ref,
+        /// Points to a `Block`.
+        payload_index: u32,
+    };
+    const SwitchCapture = struct {
+        switch_inst: Index,
+        prong_index: u32,
+    };
+    const BreakNode = struct {
+        operand: Ref,
+        payload_index: u32,
+    };
+    const String = struct {
+        /// Offset into `string_bytes`.
+        start: u32,
+        /// Number of bytes in the string.
+        len: u32,
 
-        /// Used by debug safety-checking code.
-        pub const data_tags = list: {
-            @setEvalBranchQuota(2000);
-            break :list std.enums.directEnumArray(Tag, Data.FieldEnum, 0, .{
-                .add = .pl_node,
-                .addwrap = .pl_node,
-                .add_sat = .pl_node,
-                .add_unsafe = .pl_node,
-                .sub = .pl_node,
-                .subwrap = .pl_node,
-                .sub_sat = .pl_node,
-                .mul = .pl_node,
-                .mulwrap = .pl_node,
-                .mul_sat = .pl_node,
-
-                .param = .pl_tok,
-                .param_comptime = .pl_tok,
-                .param_anytype = .str_tok,
-                .param_anytype_comptime = .str_tok,
-                .array_cat = .pl_node,
-                .array_mul = .pl_node,
-                .array_type = .pl_node,
-                .array_type_sentinel = .pl_node,
-                .vector_type = .pl_node,
-                .elem_type_index = .bin,
-                .indexable_ptr_len = .un_node,
-                .anyframe_type = .un_node,
-                .as = .bin,
-                .as_node = .pl_node,
-                .as_shift_operand = .pl_node,
-                .bit_and = .pl_node,
-                .bitcast = .pl_node,
-                .bit_not = .un_node,
-                .bit_or = .pl_node,
-                .block = .pl_node,
-                .block_comptime = .pl_node,
-                .block_inline = .pl_node,
-                .suspend_block = .pl_node,
-                .bool_not = .un_node,
-                .bool_br_and = .bool_br,
-                .bool_br_or = .bool_br,
-                .@"break" = .@"break",
-                .break_inline = .@"break",
-                .check_comptime_control_flow = .un_node,
-                .for_len = .pl_node,
-                .call = .pl_node,
-                .cmp_lt = .pl_node,
-                .cmp_lte = .pl_node,
-                .cmp_eq = .pl_node,
-                .cmp_gte = .pl_node,
-                .cmp_gt = .pl_node,
-                .cmp_neq = .pl_node,
-                .coerce_result_ptr = .pl_node,
-                .condbr = .pl_node,
-                .condbr_inline = .pl_node,
-                .@"try" = .pl_node,
-                .try_ptr = .pl_node,
-                .error_set_decl = .pl_node,
-                .error_set_decl_anon = .pl_node,
-                .error_set_decl_func = .pl_node,
-                .dbg_stmt = .dbg_stmt,
-                .dbg_var_ptr = .str_op,
-                .dbg_var_val = .str_op,
-                .dbg_block_begin = .tok,
-                .dbg_block_end = .tok,
-                .decl_ref = .str_tok,
-                .decl_val = .str_tok,
-                .load = .un_node,
-                .div = .pl_node,
-                .elem_ptr = .pl_node,
-                .elem_ptr_node = .pl_node,
-                .elem_ptr_imm = .pl_node,
-                .elem_val = .pl_node,
-                .elem_val_node = .pl_node,
-                .ensure_result_used = .un_node,
-                .ensure_result_non_error = .un_node,
-                .ensure_err_union_payload_void = .un_node,
-                .error_union_type = .pl_node,
-                .error_value = .str_tok,
-                .@"export" = .pl_node,
-                .export_value = .pl_node,
-                .field_ptr = .pl_node,
-                .field_ptr_init = .pl_node,
-                .field_val = .pl_node,
-                .field_ptr_named = .pl_node,
-                .field_val_named = .pl_node,
-                .field_call_bind = .pl_node,
-                .func = .pl_node,
-                .func_inferred = .pl_node,
-                .func_fancy = .pl_node,
-                .import = .str_tok,
-                .int = .int,
-                .int_big = .str,
-                .float = .float,
-                .float128 = .pl_node,
-                .int_type = .int_type,
-                .is_non_null = .un_node,
-                .is_non_null_ptr = .un_node,
-                .is_non_err = .un_node,
-                .is_non_err_ptr = .un_node,
-                .ret_is_non_err = .un_node,
-                .loop = .pl_node,
-                .repeat = .node,
-                .repeat_inline = .node,
-                .merge_error_sets = .pl_node,
-                .mod_rem = .pl_node,
-                .ref = .un_tok,
-                .ret_node = .un_node,
-                .ret_load = .un_node,
-                .ret_implicit = .un_tok,
-                .ret_err_value = .str_tok,
-                .ret_err_value_code = .str_tok,
-                .ret_ptr = .node,
-                .ret_type = .node,
-                .ptr_type = .ptr_type,
-                .slice_start = .pl_node,
-                .slice_end = .pl_node,
-                .slice_sentinel = .pl_node,
-                .store = .bin,
-                .store_node = .pl_node,
-                .store_to_block_ptr = .bin,
-                .store_to_inferred_ptr = .bin,
-                .str = .str,
-                .negate = .un_node,
-                .negate_wrap = .un_node,
-                .typeof = .un_node,
-                .typeof_log2_int_type = .un_node,
-                .@"unreachable" = .@"unreachable",
-                .xor = .pl_node,
-                .optional_type = .un_node,
-                .optional_payload_safe = .un_node,
-                .optional_payload_unsafe = .un_node,
-                .optional_payload_safe_ptr = .un_node,
-                .optional_payload_unsafe_ptr = .un_node,
-                .err_union_payload_unsafe = .un_node,
-                .err_union_payload_unsafe_ptr = .un_node,
-                .err_union_code = .un_node,
-                .err_union_code_ptr = .un_node,
-                .enum_literal = .str_tok,
-                .switch_block = .pl_node,
-                .switch_cond = .un_node,
-                .switch_cond_ref = .un_node,
-                .switch_capture = .switch_capture,
-                .switch_capture_ref = .switch_capture,
-                .switch_capture_multi = .switch_capture,
-                .switch_capture_multi_ref = .switch_capture,
-                .switch_capture_tag = .un_tok,
-                .array_base_ptr = .un_node,
-                .field_base_ptr = .un_node,
-                .validate_array_init_ty = .pl_node,
-                .validate_struct_init_ty = .un_node,
-                .validate_struct_init = .pl_node,
-                .validate_array_init = .pl_node,
-                .validate_deref = .un_node,
-                .struct_init_empty = .un_node,
-                .field_type = .pl_node,
-                .field_type_ref = .pl_node,
-                .struct_init = .pl_node,
-                .struct_init_ref = .pl_node,
-                .struct_init_anon = .pl_node,
-                .struct_init_anon_ref = .pl_node,
-                .array_init = .pl_node,
-                .array_init_anon = .pl_node,
-                .array_init_ref = .pl_node,
-                .array_init_anon_ref = .pl_node,
-                .union_init = .pl_node,
-                .type_info = .un_node,
-                .size_of = .un_node,
-                .bit_size_of = .un_node,
-
-                .ptr_to_int = .un_node,
-                .compile_error = .un_node,
-                .set_eval_branch_quota = .un_node,
-                .enum_to_int = .un_node,
-                .align_of = .un_node,
-                .bool_to_int = .un_node,
-                .embed_file = .un_node,
-                .error_name = .un_node,
-                .panic = .un_node,
-                .trap = .node,
-                .set_runtime_safety = .un_node,
-                .sqrt = .un_node,
-                .sin = .un_node,
-                .cos = .un_node,
-                .tan = .un_node,
-                .exp = .un_node,
-                .exp2 = .un_node,
-                .log = .un_node,
-                .log2 = .un_node,
-                .log10 = .un_node,
-                .fabs = .un_node,
-                .floor = .un_node,
-                .ceil = .un_node,
-                .trunc = .un_node,
-                .round = .un_node,
-                .tag_name = .un_node,
-                .type_name = .un_node,
-                .frame_type = .un_node,
-                .frame_size = .un_node,
-
-                .float_to_int = .pl_node,
-                .int_to_float = .pl_node,
-                .int_to_ptr = .pl_node,
-                .int_to_enum = .pl_node,
-                .float_cast = .pl_node,
-                .int_cast = .pl_node,
-                .ptr_cast = .pl_node,
-                .truncate = .pl_node,
-                .align_cast = .pl_node,
-                .typeof_builtin = .pl_node,
-
-                .has_decl = .pl_node,
-                .has_field = .pl_node,
-
-                .clz = .un_node,
-                .ctz = .un_node,
-                .pop_count = .un_node,
-                .byte_swap = .un_node,
-                .bit_reverse = .un_node,
-
-                .div_exact = .pl_node,
-                .div_floor = .pl_node,
-                .div_trunc = .pl_node,
-                .mod = .pl_node,
-                .rem = .pl_node,
-
-                .shl = .pl_node,
-                .shl_exact = .pl_node,
-                .shl_sat = .pl_node,
-                .shr = .pl_node,
-                .shr_exact = .pl_node,
-
-                .bit_offset_of = .pl_node,
-                .offset_of = .pl_node,
-                .splat = .pl_node,
-                .reduce = .pl_node,
-                .shuffle = .pl_node,
-                .atomic_load = .pl_node,
-                .atomic_rmw = .pl_node,
-                .atomic_store = .pl_node,
-                .mul_add = .pl_node,
-                .builtin_call = .pl_node,
-                .field_parent_ptr = .pl_node,
-                .max = .pl_node,
-                .memcpy = .pl_node,
-                .memset = .pl_node,
-                .min = .pl_node,
-                .c_import = .pl_node,
-
-                .alloc = .un_node,
-                .alloc_mut = .un_node,
-                .alloc_comptime_mut = .un_node,
-                .alloc_inferred = .node,
-                .alloc_inferred_mut = .node,
-                .alloc_inferred_comptime = .node,
-                .alloc_inferred_comptime_mut = .node,
-                .resolve_inferred_alloc = .un_node,
-                .make_ptr_const = .un_node,
-
-                .@"resume" = .un_node,
-                .@"await" = .un_node,
-
-                .closure_capture = .un_tok,
-                .closure_get = .inst_node,
-
-                .@"defer" = .@"defer",
-                .defer_err_code = .defer_err_code,
-
-                .save_err_ret_index = .save_err_ret_index,
-                .restore_err_ret_index = .restore_err_ret_index,
-
-                .extended = .extended,
-            });
-        };
-
-        // Uncomment to view how many tag slots are available.
-        //comptime {
-        //    @compileLog("ZIR tags left: ", 256 - @typeInfo(Tag).Enum.fields.len);
-        //}
+        pub fn get(self: @This(), code: Zir) []const u8 {
+            return code.string_bytes[self.start..][0..self.len];
+        }
     };
 
     /// Rarer instructions are here; ones that do not fit in the 8-bit `Tag` enum.
@@ -2469,218 +1690,6 @@ pub const Inst = struct {
     var calling_convention_inline_payload: Value.Payload.U32 = .{
         .base = .{ .tag = .enum_field_index },
         .data = @enumToInt(std.builtin.CallingConvention.Inline),
-    };
-
-    /// All instructions have an 8-byte payload, which is contained within
-    /// this union. `Tag` determines which union field is active, as well as
-    /// how to interpret the data within.
-    pub const Data = union {
-        /// Used for `Tag.extended`. The extended opcode determines the meaning
-        /// of the `small` and `operand` fields.
-        extended: Extended.InstData,
-        /// Used for unary operators, with an AST node source location.
-        un_node: struct {
-            /// Offset from Decl AST node index.
-            src_node: i32,
-            /// The meaning of this operand depends on the corresponding `Tag`.
-            operand: Ref,
-
-            pub fn src(self: @This()) LazySrcLoc {
-                return LazySrcLoc.nodeOffset(self.src_node);
-            }
-        },
-        /// Used for unary operators, with a token source location.
-        un_tok: struct {
-            /// Offset from Decl AST token index.
-            src_tok: Ast.TokenIndex,
-            /// The meaning of this operand depends on the corresponding `Tag`.
-            operand: Ref,
-
-            pub fn src(self: @This()) LazySrcLoc {
-                return .{ .token_offset = self.src_tok };
-            }
-        },
-        pl_node: struct {
-            /// Offset from Decl AST node index.
-            /// `Tag` determines which kind of AST node this points to.
-            src_node: i32,
-            /// index into extra.
-            /// `Tag` determines what lives there.
-            payload_index: u32,
-
-            pub fn src(self: @This()) LazySrcLoc {
-                return LazySrcLoc.nodeOffset(self.src_node);
-            }
-        },
-        pl_tok: struct {
-            /// Offset from Decl AST token index.
-            src_tok: Ast.TokenIndex,
-            /// index into extra.
-            /// `Tag` determines what lives there.
-            payload_index: u32,
-
-            pub fn src(self: @This()) LazySrcLoc {
-                return .{ .token_offset = self.src_tok };
-            }
-        },
-        bin: Bin,
-        /// For strings which may contain null bytes.
-        str: struct {
-            /// Offset into `string_bytes`.
-            start: u32,
-            /// Number of bytes in the string.
-            len: u32,
-
-            pub fn get(self: @This(), code: Zir) []const u8 {
-                return code.string_bytes[self.start..][0..self.len];
-            }
-        },
-        str_tok: struct {
-            /// Offset into `string_bytes`. Null-terminated.
-            start: u32,
-            /// Offset from Decl AST token index.
-            src_tok: u32,
-
-            pub fn get(self: @This(), code: Zir) [:0]const u8 {
-                return code.nullTerminatedString(self.start);
-            }
-
-            pub fn src(self: @This()) LazySrcLoc {
-                return .{ .token_offset = self.src_tok };
-            }
-        },
-        /// Offset from Decl AST token index.
-        tok: Ast.TokenIndex,
-        /// Offset from Decl AST node index.
-        node: i32,
-        int: u64,
-        float: f64,
-        ptr_type: struct {
-            flags: packed struct {
-                is_allowzero: bool,
-                is_mutable: bool,
-                is_volatile: bool,
-                has_sentinel: bool,
-                has_align: bool,
-                has_addrspace: bool,
-                has_bit_range: bool,
-                _: u1 = undefined,
-            },
-            size: std.builtin.Type.Pointer.Size,
-            /// Index into extra. See `PtrType`.
-            payload_index: u32,
-        },
-        int_type: struct {
-            /// Offset from Decl AST node index.
-            /// `Tag` determines which kind of AST node this points to.
-            src_node: i32,
-            signedness: std.builtin.Signedness,
-            bit_count: u16,
-
-            pub fn src(self: @This()) LazySrcLoc {
-                return LazySrcLoc.nodeOffset(self.src_node);
-            }
-        },
-        bool_br: struct {
-            lhs: Ref,
-            /// Points to a `Block`.
-            payload_index: u32,
-        },
-        @"unreachable": struct {
-            /// Offset from Decl AST node index.
-            /// `Tag` determines which kind of AST node this points to.
-            src_node: i32,
-
-            pub fn src(self: @This()) LazySrcLoc {
-                return LazySrcLoc.nodeOffset(self.src_node);
-            }
-        },
-        @"break": struct {
-            operand: Ref,
-            payload_index: u32,
-        },
-        switch_capture: struct {
-            switch_inst: Index,
-            prong_index: u32,
-        },
-        dbg_stmt: LineColumn,
-        /// Used for unary operators which reference an inst,
-        /// with an AST node source location.
-        inst_node: struct {
-            /// Offset from Decl AST node index.
-            src_node: i32,
-            /// The meaning of this operand depends on the corresponding `Tag`.
-            inst: Index,
-
-            pub fn src(self: @This()) LazySrcLoc {
-                return LazySrcLoc.nodeOffset(self.src_node);
-            }
-        },
-        str_op: struct {
-            /// Offset into `string_bytes`. Null-terminated.
-            str: u32,
-            operand: Ref,
-
-            pub fn getStr(self: @This(), zir: Zir) [:0]const u8 {
-                return zir.nullTerminatedString(self.str);
-            }
-        },
-        @"defer": struct {
-            index: u32,
-            len: u32,
-        },
-        defer_err_code: struct {
-            err_code: Ref,
-            payload_index: u32,
-        },
-        save_err_ret_index: struct {
-            operand: Ref, // If error type (or .none), save new trace index
-        },
-        restore_err_ret_index: struct {
-            block: Ref, // If restored, the index is from this block's entrypoint
-            operand: Ref, // If non-error (or .none), then restore the index
-        },
-
-        // Make sure we don't accidentally add a field to make this union
-        // bigger than expected. Note that in Debug builds, Zig is allowed
-        // to insert a secret field for safety checks.
-        comptime {
-            if (builtin.mode != .Debug and builtin.mode != .ReleaseSafe) {
-                assert(@sizeOf(Data) == 8);
-            }
-        }
-
-        /// TODO this has to be kept in sync with `Data` which we want to be an untagged
-        /// union. There is some kind of language awkwardness here and it has to do with
-        /// deserializing an untagged union (in this case `Data`) from a file, and trying
-        /// to preserve the hidden safety field.
-        pub const FieldEnum = enum {
-            extended,
-            un_node,
-            un_tok,
-            pl_node,
-            pl_tok,
-            bin,
-            str,
-            str_tok,
-            tok,
-            node,
-            int,
-            float,
-            ptr_type,
-            int_type,
-            bool_br,
-            @"unreachable",
-            @"break",
-            switch_capture,
-            dbg_stmt,
-            inst_node,
-            str_op,
-            @"defer",
-            defer_err_code,
-            save_err_ret_index,
-            restore_err_ret_index,
-        };
     };
 
     pub const Break = struct {
