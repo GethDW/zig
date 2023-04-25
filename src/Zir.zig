@@ -246,14 +246,14 @@ pub const Inst = union(enum(u8)) {
     /// Same as `as_node` but ignores runtime to comptime int error.
     as_shift_operand: PayloadNode,
     /// Bitwise AND. `&`
-    bit_and: Bin,
+    bit_and: PayloadNode,
     /// Reinterpret the memory representation of a value as a different type.
     /// Payload is `Bin`.
     bitcast: PayloadNode,
     /// Bitwise NOT. `~`
-    bit_not: UnaryToken,
+    bit_not: UnaryNode,
     /// Bitwise OR. `|`
-    bit_or: Bin,
+    bit_or: PayloadNode,
     /// A labeled block of code, which can return a value.
     /// Payload is `Block`.
     block: PayloadNode,
@@ -269,7 +269,7 @@ pub const Inst = union(enum(u8)) {
     /// Payload is `Block`.
     suspend_block: PayloadNode,
     /// Boolean NOT. See also `bit_not`.
-    bool_not: UnaryToken,
+    bool_not: UnaryNode,
     /// Short-circuiting boolean `and`. `lhs` is a boolean `Ref` and the other operand
     /// is a block, which is evaluated if `lhs` is `true`.
     bool_br_and: BoolBreak,
@@ -394,7 +394,7 @@ pub const Inst = union(enum(u8)) {
     /// Emits a compile error if an error is ignored.
     ensure_result_non_error: UnaryNode,
     /// Emits a compile error error union payload is not void.
-    ensure_err_union_payload_void,
+    ensure_err_union_payload_void: UnaryNode,
     /// Create a `E!T` type.
     /// Payload is `Bin`.
     error_union_type: PayloadNode,
@@ -427,7 +427,7 @@ pub const Inst = union(enum(u8)) {
     /// which contains both the function and the saved first parameter value.
     /// Bound functions may only be used as the function parameter to a `call` or
     /// `builtin_call` instruction.  Any other use is invalid zir and may crash the compiler.
-    field_call_bind,
+    field_call_bind: PayloadNode,
     /// Given a pointer to a struct or object that contains virtual fields, returns a pointer
     /// to the named field. The field name is a comptime instruction. Used by @field.
     /// The AST node is the builtin call. Payload is FieldNamed.
@@ -458,8 +458,7 @@ pub const Inst = union(enum(u8)) {
     /// Payload is `Float128`.
     float128: PayloadNode,
     /// Make an integer type out of signedness and bit count.
-    /// Payload is `int_type`
-    int_type: PayloadNode,
+    int_type: IntType,
     /// Return a boolean false if an optional is null. `x != null`
     is_non_null: UnaryNode,
     /// Return a boolean false if an optional is null. `x.* != null`
@@ -527,21 +526,7 @@ pub const Inst = union(enum(u8)) {
     /// Obtains the return type of the in-scope function.
     ret_type: i32,
     /// Create a pointer type which can have a sentinel, alignment, address space, and/or bit range.
-    ptr_type: struct {
-        flags: packed struct {
-            is_allowzero: bool,
-            is_mutable: bool,
-            is_volatile: bool,
-            has_sentinel: bool,
-            has_align: bool,
-            has_addrspace: bool,
-            has_bit_range: bool,
-            _: u1 = undefined,
-        },
-        size: std.builtin.Type.Pointer.Size,
-        /// Index into extra. See `PtrType`.
-        payload_index: u32,
-    },
+    ptr_type: PointerType,
     /// Slice operation `lhs[rhs..]`. No sentinel and no end offset.
     /// Returns a pointer to the subslice.
     /// AST node is the slice syntax. Payload is `SliceStart`.
@@ -591,15 +576,7 @@ pub const Inst = union(enum(u8)) {
     /// Returns the integer type for the RHS of a shift operation.
     typeof_log2_int_type: UnaryNode,
     /// Asserts control-flow will not reach this instruction (`unreachable`).
-    @"unreachable": struct {
-        /// Offset from Decl AST node index.
-        /// `Tag` determines which kind of AST node this points to.
-        src_node: i32,
-
-        pub fn src(self: @This()) LazySrcLoc {
-            return LazySrcLoc.nodeOffset(self.src_node);
-        }
-    },
+    @"unreachable": Unreachable,
     /// Bitwise XOR. `^`
     /// Payload is `Bin`.
     xor: PayloadNode,
@@ -674,7 +651,7 @@ pub const Inst = union(enum(u8)) {
     ///   *?S returns *S
     field_base_ptr: UnaryNode,
     /// Checks that the type supports array init syntax.
-    validate_array_init_ty: UnaryNode,
+    validate_array_init_ty: PayloadNode,
     /// Checks that the type supports struct init syntax.
     validate_struct_init_ty: UnaryNode,
     /// Given a set of `field_ptr` instructions, assumes they are all part of a struct
@@ -902,9 +879,9 @@ pub const Inst = union(enum(u8)) {
     /// The node source location points to a var decl node.
     alloc_comptime_mut: UnaryNode,
     /// Same as `alloc` except the type is inferred.
-    alloc_inferred: UnaryNode,
+    alloc_inferred: i32,
     /// Same as `alloc_inferred` except mutable.
-    alloc_inferred_mut: UnaryNode,
+    alloc_inferred_mut: i32,
     /// Allocates comptime const memory.
     /// The type of the allocated object is inferred.
     /// The node source location points to a var decl node.
@@ -932,7 +909,7 @@ pub const Inst = union(enum(u8)) {
     closure_capture: UnaryToken,
     /// The inner scope of a closure uses closure_get to retrieve the value
     /// stored by the outer scope. Operand is the closure_capture instruction ref.
-    closure_get: UnaryNode,
+    closure_get: InstNode,
 
     /// A defer statement.
     @"defer": struct {
@@ -947,9 +924,7 @@ pub const Inst = union(enum(u8)) {
 
     /// Requests that Sema update the saved error return trace index for the enclosing
     /// block, if the operand is .none or of an error/error-union type.
-    save_err_ret_index: struct {
-        operand: Ref, // If error type (or .none), save new trace index
-    },
+    save_err_ret_index: Ref, // If error type (or .none), save new trace index
     /// Sets error return trace to zero if no operand is given: aeiou,
     /// otherwise sets the value to the given amount.
     restore_err_ret_index: struct {
@@ -961,7 +936,7 @@ pub const Inst = union(enum(u8)) {
     /// Uses the `extended` union field.
     extended: Extended.InstData,
 
-    const PayloadNode = struct {
+    pub const PayloadNode = struct {
         /// Offset from Decl AST node index.
         /// `Tag` determines which kind of AST node this points to.
         src_node: i32,
@@ -973,7 +948,7 @@ pub const Inst = union(enum(u8)) {
             return LazySrcLoc.nodeOffset(self.src_node);
         }
     };
-    const UnaryNode = struct {
+    pub const UnaryNode = struct {
         /// Offset from Decl AST node index.
         src_node: i32,
         /// The meaning of this operand depends on the corresponding `Tag`.
@@ -983,7 +958,19 @@ pub const Inst = union(enum(u8)) {
             return LazySrcLoc.nodeOffset(self.src_node);
         }
     };
-    const PayloadToken = struct {
+    /// Used for unary operators which reference an inst,
+    /// with an AST node source location.
+    pub const InstNode = struct {
+        /// Offset from Decl AST node index.
+        src_node: i32,
+        /// The meaning of this operand depends on the corresponding `Tag`.
+        inst: Index,
+
+        pub fn src(self: @This()) LazySrcLoc {
+            return LazySrcLoc.nodeOffset(self.src_node);
+        }
+    };
+    pub const PayloadToken = struct {
         /// Offset from Decl AST token index.
         src_tok: Ast.TokenIndex,
         /// index into extra.
@@ -994,7 +981,7 @@ pub const Inst = union(enum(u8)) {
             return .{ .token_offset = self.src_tok };
         }
     };
-    const UnaryToken = struct {
+    pub const UnaryToken = struct {
         /// Offset from Decl AST token index.
         src_tok: Ast.TokenIndex,
         /// The meaning of this operand depends on the corresponding `Tag`.
@@ -1004,7 +991,7 @@ pub const Inst = union(enum(u8)) {
             return .{ .token_offset = self.src_tok };
         }
     };
-    const StringToken = struct {
+    pub const StringToken = struct {
         /// Offset into `string_bytes`. Null-terminated.
         start: u32,
         /// Offset from Decl AST token index.
@@ -1018,7 +1005,7 @@ pub const Inst = union(enum(u8)) {
             return .{ .token_offset = self.src_tok };
         }
     };
-    const StringOperator = struct {
+    pub const StringOperator = struct {
         /// Offset into `string_bytes`. Null-terminated.
         str: u32,
         operand: Ref,
@@ -1027,20 +1014,20 @@ pub const Inst = union(enum(u8)) {
             return zir.nullTerminatedString(self.str);
         }
     };
-    const BoolBreak = struct {
+    pub const BoolBreak = struct {
         lhs: Ref,
         /// Points to a `Block`.
         payload_index: u32,
     };
-    const SwitchCapture = struct {
+    pub const SwitchCapture = struct {
         switch_inst: Index,
         prong_index: u32,
     };
-    const BreakNode = struct {
+    pub const BreakNode = struct {
         operand: Ref,
         payload_index: u32,
     };
-    const String = struct {
+    pub const String = struct {
         /// Offset into `string_bytes`.
         start: u32,
         /// Number of bytes in the string.
@@ -1048,6 +1035,41 @@ pub const Inst = union(enum(u8)) {
 
         pub fn get(self: @This(), code: Zir) []const u8 {
             return code.string_bytes[self.start..][0..self.len];
+        }
+    };
+    pub const IntType = struct {
+        /// Offset from Decl AST node index.
+        /// `Tag` determines which kind of AST node this points to.
+        src_node: i32,
+        signedness: std.builtin.Signedness,
+        bit_count: u16,
+
+        pub fn src(self: @This()) LazySrcLoc {
+            return LazySrcLoc.nodeOffset(self.src_node);
+        }
+    };
+    pub const PointerType = struct {
+        flags: packed struct {
+            is_allowzero: bool,
+            is_mutable: bool,
+            is_volatile: bool,
+            has_sentinel: bool,
+            has_align: bool,
+            has_addrspace: bool,
+            has_bit_range: bool,
+            _: u1 = undefined,
+        },
+        size: std.builtin.Type.Pointer.Size,
+        /// Index into extra. See `PtrType`.
+        payload_index: u32,
+    };
+    pub const Unreachable = struct {
+        /// Offset from Decl AST node index.
+        /// `Tag` determines which kind of AST node this points to.
+        src_node: i32,
+
+        pub fn src(self: @This()) LazySrcLoc {
+            return LazySrcLoc.nodeOffset(self.src_node);
         }
     };
 
@@ -2690,7 +2712,7 @@ pub const DeclIterator = struct {
 };
 
 pub fn declIterator(zir: Zir, decl_inst: u32) DeclIterator {
-    const tags = zir.instructions.items(.tag);
+    const tags = zir.instructions.items(.tags);
     const datas = zir.instructions.items(.data);
     switch (tags[decl_inst]) {
         // Functions are allowed and yield no iterations.
@@ -2798,7 +2820,7 @@ fn findDeclsInner(
     list: *std.ArrayList(Inst.Index),
     inst: Inst.Index,
 ) Allocator.Error!void {
-    const tags = zir.instructions.items(.tag);
+    const tags = zir.instructions.items(.tags);
     const datas = zir.instructions.items(.data);
 
     switch (tags[inst]) {
@@ -3018,7 +3040,7 @@ pub const FnInfo = struct {
 };
 
 pub fn getParamBody(zir: Zir, fn_inst: Inst.Index) []const u32 {
-    const tags = zir.instructions.items(.tag);
+    const tags = zir.instructions.items(.tags);
     const datas = zir.instructions.items(.data);
     const inst_data = datas[fn_inst].pl_node;
 
@@ -3039,7 +3061,7 @@ pub fn getParamBody(zir: Zir, fn_inst: Inst.Index) []const u32 {
 }
 
 pub fn getFnInfo(zir: Zir, fn_inst: Inst.Index) FnInfo {
-    const tags = zir.instructions.items(.tag);
+    const tags = zir.instructions.items(.tags);
     const datas = zir.instructions.items(.data);
     const info: struct {
         param_block: Inst.Index,
