@@ -853,10 +853,10 @@ pub const Inst = union(enum(u8)) {
     /// Payload is `FieldParentPtr`.
     field_parent_ptr: PayloadNode,
     /// Implements the `@memcpy` builtin.
-    /// Payload is `Memcpy`.
+    /// Payload is `Bin`.
     memcpy: PayloadNode,
     /// Implements the `@memset` builtin.
-    /// Payload is `Memset`.
+    /// Payload is `Bin`.
     memset: PayloadNode,
     /// Implements the `@min` builtin.
     /// Payload is `Bin`
@@ -2530,18 +2530,6 @@ pub const Inst = union(enum(u8)) {
         parent_type: Ref,
         field_name: Ref,
         field_ptr: Ref,
-    };
-
-    pub const Memcpy = struct {
-        dest: Ref,
-        source: Ref,
-        byte_count: Ref,
-    };
-
-    pub const Memset = struct {
-        dest: Ref,
-        byte: Ref,
-        byte_count: Ref,
     };
 
     pub const Shuffle = struct {

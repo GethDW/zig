@@ -281,9 +281,6 @@ const Writer = struct {
             .atomic_store => |atomic_store| try self.writeAtomicStore(stream, atomic_store),
             .atomic_rmw => |atomic_rmw| try self.writeAtomicRmw(stream, atomic_rmw),
 
-            .memcpy => |memcpy| try self.writeMemcpy(stream, memcpy),
-            .memset => |memset| try self.writeMemset(stream, memset),
-
             .shuffle => |shuffle| try self.writeShuffle(stream, shuffle),
             .mul_add => |mul_add| try self.writeMulAdd(stream, mul_add),
             .field_parent_ptr => |field_parent_ptr| try self.writeFieldParentPtr(stream, field_parent_ptr),
@@ -347,6 +344,8 @@ const Writer = struct {
             .vector_type,
             .max,
             .min,
+            .memcpy,
+            .memset,
             .elem_ptr_node,
             .elem_val_node,
             .elem_ptr,
@@ -970,30 +969,6 @@ const Writer = struct {
         try self.writeInstRef(stream, extra.ordering);
         try stream.writeAll(") ");
         try self.writeSrc(stream, atomic_rmw.src());
-    }
-
-    fn writeMemcpy(self: *Writer, stream: anytype, memcpy: Zir.Inst.PayloadNode) !void {
-        const extra = self.code.extraData(Zir.Inst.Memcpy, memcpy.payload_index).data;
-
-        try self.writeInstRef(stream, extra.dest);
-        try stream.writeAll(", ");
-        try self.writeInstRef(stream, extra.source);
-        try stream.writeAll(", ");
-        try self.writeInstRef(stream, extra.byte_count);
-        try stream.writeAll(") ");
-        try self.writeSrc(stream, memcpy.src());
-    }
-
-    fn writeMemset(self: *Writer, stream: anytype, memset: Zir.Inst.PayloadNode) !void {
-        const extra = self.code.extraData(Zir.Inst.Memset, memset.payload_index).data;
-
-        try self.writeInstRef(stream, extra.dest);
-        try stream.writeAll(", ");
-        try self.writeInstRef(stream, extra.byte);
-        try stream.writeAll(", ");
-        try self.writeInstRef(stream, extra.byte_count);
-        try stream.writeAll(") ");
-        try self.writeSrc(stream, memset.src());
     }
 
     fn writeStructInitAnon(self: *Writer, stream: anytype, struct_init_anon: Zir.Inst.PayloadNode) !void {
